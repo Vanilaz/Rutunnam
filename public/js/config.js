@@ -15,11 +15,21 @@ export const CACHE_MAX_AGE_MS = 24 * HOUR_MS;
 export const STALE_READING_MS = 6 * HOUR_MS;
 export const DEFAULT_CAMERA_REFRESH_MS = 10 * 1000;
 export const NEAREST_STATION_LIMIT = 8;
+export const NEARBY_RADIUS_KM = 10;
+export const RISK_LIST_LIMIT = 30;
+export const MAX_PULSE_MARKERS = 150; // DOM markers for overflowing stations; the rest stay on canvas.
+export const LABEL_MIN_ZOOM = 10;
+
+// ThaiWater's own water-level classes, as % of channel depth (storage_percent).
+// Mirrors the legend on thaiwater.net; adjust here if the agency changes it.
+export const STORAGE_CLASSES = Object.freeze({ overflowAbove: 100, highAbove: 70, lowAtOrBelow: 30 });
 export const MOBILE_BREAKPOINT_PX = 721;
 export const GEOLOCATION_OPTIONS = Object.freeze({ enableHighAccuracy: true, timeout: 12 * 1000, maximumAge: MINUTE_MS });
 
 export const STORAGE_KEYS = Object.freeze({ waterCache: "rutan-water-cache", home: "rutan-home" });
 export const WATER_API_URL = "/api/water";
+export const CONFIG_API_URL = "/api/config";
+export const ROAD_FLOOD_API_URL = "/api/road-flood";
 export const THAIWATER_URL = "https://www.thaiwater.net/";
 
 export const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";

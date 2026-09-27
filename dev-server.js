@@ -6,7 +6,7 @@ const path = require("node:path");
 process.env.NODE_ENV ??= "development";
 const root = path.join(__dirname, "public");
 const port = Number(process.env.PORT) || 3000;
-const apiRoutes = new Set(["/api/water", "/api/flood"]);
+const apiRoutes = new Set(["/api/water", "/api/flood", "/api/config", "/api/road-flood", "/api/flood-wms"]);
 /** @type {Record<string, string>} */
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -31,11 +31,15 @@ function send(res, code, message) {
  */
 async function handleApi(pathname, req, res) {
   const handler = require(`.${pathname}.js`);
+  const url = new URL(req.url ?? "/", "http://localhost");
+  Object.assign(req, { query: Object.fromEntries(url.searchParams) });
   const vercelRes = Object.assign(res, {
     /** @param {number} code */
     status(code) { res.statusCode = code; return vercelRes; },
     /** @param {unknown} body */
-    json(body) { res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify(body)); return vercelRes; }
+    json(body) { res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify(body)); return vercelRes; },
+    /** @param {Buffer | string} body */
+    send(body) { res.end(body); return vercelRes; }
   });
   await handler(req, vercelRes);
 }

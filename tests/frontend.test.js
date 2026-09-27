@@ -70,3 +70,62 @@ test("camera tab counts are derived from the camera list", async () => {
   assert.ok(html.includes(`${images} กล้อง · ${directories} ศูนย์`));
   assert.equal((html.match(/data-camera=/g) || []).length, images);
 });
+
+test("stationRisk follows ThaiWater's storage percent classes", async () => {
+  const { stationRisk } = await load("risk.js");
+  const now = Date.parse("2026-09-27T00:00:00Z");
+  const fresh = new Date(now - HOUR_MS).toISOString();
+  const at = (storagePercent, extra = {}) => stationRisk({ level: 2, bank: null, storagePercent, measuredAt: fresh, ...extra }, now).status;
+  assert.equal(at(104.5), "overflow");
+  assert.equal(at(100), "high");
+  assert.equal(at(71), "high");
+  assert.equal(at(70), "normal");
+  assert.equal(at(30), "low");
+});
+
+test("stationRisk compares with the bank only when no percent is published", async () => {
+  const { stationRisk, formatMargin } = await load("risk.js");
+  const now = Date.parse("2026-09-27T00:00:00Z");
+  const measuredAt = new Date(now - HOUR_MS).toISOString();
+  const over = stationRisk({ level: 3.4, bank: 3.1, storagePercent: null, measuredAt }, now);
+  assert.equal(over.status, "overflow");
+  assert.equal(formatMargin(over.margin), "+0.30 ม.");
+  assert.equal(stationRisk({ level: 2.0, bank: 3.1, storagePercent: null, measuredAt }, now).status, "belowBank");
+  assert.equal(stationRisk({ level: 2.0, bank: null, storagePercent: null, measuredAt }, now).status, "unknown");
+});
+
+test("stale or missing readings are never flagged as overflowing", async () => {
+  const { stationRisk } = await load("risk.js");
+  const now = Date.parse("2026-09-27T00:00:00Z");
+  assert.equal(stationRisk({ level: 5, bank: 3, storagePercent: 150, measuredAt: new Date(now - 7 * HOUR_MS).toISOString() }, now).status, "stale");
+  assert.equal(stationRisk({ level: null, bank: 3, storagePercent: 150, measuredAt: new Date(now).toISOString() }, now).status, "stale");
+});
+
+test("riskyStations lists overflow first, then by severity", async () => {
+  const { riskyStations } = await load("risk.js");
+  const now = Date.parse("2026-09-27T00:00:00Z");
+  const measuredAt = new Date(now - HOUR_MS).toISOString();
+  const list = riskyStations([
+    { id: "a", level: 1, storagePercent: 80, measuredAt },
+    { id: "b", level: 1, storagePercent: 120, measuredAt },
+    { id: "c", level: 1, storagePercent: 50, measuredAt },
+    { id: "d", level: 1, storagePercent: 95, measuredAt },
+    { id: "e", level: 1, storagePercent: 101, measuredAt }
+  ], now);
+  assert.deepEqual(list.map((item) => item.station.id), ["b", "e", "d", "a"]);
+});
+
+test("road flood popup never invents a depth", async () => {
+  const { roadFloodPopupHtml } = await load("templates.js");
+  assert.match(roadFloodPopupHtml({ id: "1", lat: 13.7, lng: 100.5, name: "ถ.ทดสอบ", depthCm: 25, reportedAt: null }), /น้ำลึกประมาณ 25 ซม\./);
+  assert.match(roadFloodPopupHtml({ id: "2", lat: 13.7, lng: 100.5, name: "<b>x</b>", depthCm: null, reportedAt: null }), /ต้นทางไม่ระบุหน่วยความลึก/);
+  assert.ok(!roadFloodPopupHtml({ id: "2", lat: 13.7, lng: 100.5, name: "<b>x</b>", depthCm: null, reportedAt: null }).includes("<b>x</b>"));
+});
+
+test("flood tab distinguishes unreadable data from no flooding", async () => {
+  const { floodTabHtml } = await load("templates.js");
+  const base = { floodAvailable: false, floodOn: false, floodError: false, roadError: null };
+  assert.match(floodTabHtml({ ...base, roads: [], roadUnsupported: true }), /ไม่ได้แปลว่าไม่มีน้ำท่วม/);
+  assert.match(floodTabHtml({ ...base, roads: [], roadUnsupported: false }), /ไม่มีรายงานถนนน้ำท่วม/);
+  assert.match(floodTabHtml({ ...base, roads: null, roadUnsupported: false }), /GISTDA_API_KEY/);
+});
