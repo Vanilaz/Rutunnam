@@ -61,14 +61,35 @@ test("water tab shows retry only when there is nothing cached to show", async ()
   assert.match(waterTabHtml({ nearest: [], hasStations: true, error: "ล่ม", fetchedAt: "2026-09-27T00:00:00Z" }), /cache-warning/);
 });
 
-test("camera tab counts are derived from the camera list", async () => {
+test("camera tab renders a thumbnail card per camera and escapes names", async () => {
   const { cameraTabHtml } = await load("templates.js");
   const { CAMERA_SOURCES } = await load("config.js");
-  const html = cameraTabHtml(CAMERA_SOURCES);
-  const images = CAMERA_SOURCES.filter((c) => !c.directory).length;
-  const directories = CAMERA_SOURCES.length - images;
-  assert.ok(html.includes(`${images} กล้อง · ${directories} ศูนย์`));
-  assert.equal((html.match(/data-camera=/g) || []).length, images);
+  const water = CAMERA_SOURCES.filter((c) => !c.directory).map((camera, i) => ({ camera, distance: i }));
+  const directories = CAMERA_SOURCES.filter((c) => c.directory);
+  const traffic = [
+    { camera: { id: "itic-A", name: "<b>แยก</b>", org: "กทม.", lat: 13.7, lng: 100.5, image: "https://cam.example/a.jpg", hls: null }, distance: 1.25 },
+    { camera: { id: "itic-B", name: "ทล.1", org: "", lat: 14, lng: 100.6, image: null, hls: "https://camera1.iticfoundation.org/b.m3u8" }, distance: 3 }
+  ];
+  const html = cameraTabHtml({ water, directories, traffic, trafficTotal: 150, trafficError: null, hasMore: true });
+  assert.equal((html.match(/data-viewer="water:/g) || []).length, water.length);
+  assert.equal((html.match(/data-viewer="traffic:/g) || []).length, 2);
+  assert.ok(html.includes('data-thumb="https://cam.example/a.jpg"'));
+  assert.ok(html.includes("150 กล้องทั่วประเทศ"));
+  assert.ok(html.includes('data-action="more-traffic-cameras"'));
+  assert.ok(!html.includes("<b>แยก</b>"));
+  assert.match(cameraTabHtml({ water, directories, traffic: null, trafficTotal: 0, trafficError: "ล่ม", hasMore: false }), /ล่ม/);
+});
+
+test("alert banner names the nearest risky station", async () => {
+  const { alertBannerHtml } = await load("templates.js");
+  assert.equal(alertBannerHtml(null), null);
+  const station = { id: "1", name: "คลองเปรมประชากร <x>", lat: 14, lng: 100.6, level: 1.78, bank: 1.29, measuredAt: null };
+  const overflow = alertBannerHtml({ station, risk: { status: "overflow", percent: 138, margin: 0.49 }, distance: 2.04 });
+  assert.equal(overflow.level, "overflow");
+  assert.match(overflow.html, /ใกล้คุณ: ล้นตลิ่ง/);
+  assert.match(overflow.html, /\+0\.49 ม\./);
+  assert.ok(!overflow.html.includes("<x>"));
+  assert.equal(alertBannerHtml({ station, risk: { status: "high", percent: 85, margin: null }, distance: 1 }).level, "high");
 });
 
 test("stationRisk follows ThaiWater's storage percent classes", async () => {

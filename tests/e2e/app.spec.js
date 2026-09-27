@@ -1,5 +1,5 @@
 // @ts-check
-const { test, expect, okReply } = require("./fixtures");
+const { test, expect, okReply, json, openTab, stationCards, openLayers, isMobile } = require("./fixtures");
 
 const HTML_GATEWAY_ERROR = { status: 504, body: "<html>Gateway Timeout</html>", contentType: "text/html" };
 
@@ -8,14 +8,16 @@ test.describe("station data", () => {
     await page.goto("/");
     await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
     await expect(page.locator("#feed-state")).toHaveText("เชื่อมต่อ ThaiWater แล้ว");
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await openTab(page, "water");
+    await expect(stationCards(page)).toHaveCount(8);
     expect(net.pageErrors).toEqual([]);
   });
 
   test("a station card opens that station's popup on the map", async ({ page, net }) => {
     await page.goto("/");
-    const card = page.locator(".station-card").first();
-    const name = await card.locator("strong").textContent();
+    await openTab(page, "water");
+    const card = stationCards(page).first();
+    const name = await card.locator("strong").first().textContent();
     await card.click();
     await expect(page.locator(".leaflet-popup-content")).toContainText(name ?? "");
     expect(net.pageErrors).toEqual([]);
@@ -23,17 +25,18 @@ test.describe("station data", () => {
 
   test("clicking a card turns the station layer back on", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await openLayers(page);
     await page.locator("label:has(#toggle-water)").click();
     await expect(page.locator("#toggle-water")).not.toBeChecked();
-    await page.locator(".station-card").nth(2).click();
+    await openTab(page, "water");
+    await stationCards(page).nth(2).click();
     await expect(page.locator("#toggle-water")).toBeChecked();
     await expect(page.locator(".leaflet-popup-content")).toBeVisible();
   });
 
   test("search jumps to the closest match", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
     await page.fill("#station-query", "ทดสอบ 20");
     await page.press("#station-query", "Enter");
     await expect(page.locator("#search-message")).toHaveText("พบ 1 สถานี · แสดง สถานีทดสอบ 20 (ปทุมธานี)");
@@ -43,38 +46,112 @@ test.describe("station data", () => {
   test("an HTML error page shows a Thai message and retry recovers", async ({ page, net }) => {
     net.api(HTML_GATEWAY_ERROR);
     await page.goto("/");
+    await openTab(page, "water");
     await expect(page.locator("#tab-content")).toContainText("แหล่งข้อมูลไม่พร้อมใช้งาน (HTTP 504)");
     net.api(okReply());
     await page.locator('[data-action="retry"]').click();
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await expect(stationCards(page)).toHaveCount(8);
     expect(net.pageErrors).toEqual([]);
   });
 
   test("a stale server copy is labelled as such", async ({ page, net }) => {
     net.api(okReply(undefined, { stale: true, warning: "ต้นทางขัดข้อง" }));
     await page.goto("/");
+    await openTab(page, "water");
     await expect(page.locator(".cache-warning")).toBeVisible();
     await expect(page.locator("#feed-state")).toHaveText("แสดงข้อมูลครั้งก่อน");
   });
 
   test("the last good feed is shown from device cache when offline", async ({ page, net }) => {
     await page.goto("/");
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
     net.api(HTML_GATEWAY_ERROR);
     await page.reload();
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await openTab(page, "water");
+    await expect(stationCards(page)).toHaveCount(8);
     await expect(page.locator(".cache-warning")).toBeVisible();
   });
 });
 
-test.describe("cameras", () => {
-  test("camera list opens a popup with a refreshing preview", async ({ page, net }) => {
+test.describe("summary and layout", () => {
+  test("the 'near you' banner and summary numbers reflect the data", async ({ page, net }) => {
     await page.goto("/");
-    await page.locator('.tab[data-tab="camera"]').click();
-    await expect(page.locator("#tab-content .content-heading span")).toHaveText("7 กล้อง · 2 ศูนย์");
-    await page.locator(".camera-open").first().click();
-    await expect(page.locator(".camera-preview img")).toHaveAttribute("src", /cctv1\.jpg\?t=\d+/);
+    await expect(page.locator("#alert-banner")).toContainText("ใกล้คุณ: ล้นตลิ่ง");
+    await expect(page.locator("#alert-banner")).toContainText("สถานีทดสอบ 11");
+    await expect(page.locator("#kpi-overflow")).toHaveText("1");
+    await expect(page.locator("#kpi-high")).toHaveText("1");
+    await expect(page.locator("#kpi-roads")).toHaveText("2");
+    await expect(page.locator("#kpi-cameras")).toHaveText("10");
+    await expect(page.locator("#updated-at")).not.toHaveText("--:--");
+    await page.locator("#alert-banner").click();
+    await expect(page.locator(".leaflet-popup-content")).toContainText("สถานีทดสอบ 11");
     expect(net.pageErrors).toEqual([]);
+  });
+
+  test("on phones each menu item opens a full page and the map comes back", async ({ page }) => {
+    test.skip(!isMobile(), "phone layout only");
+    await page.goto("/");
+    await expect(page.locator(".map-panel")).toBeVisible();
+    await expect(page.locator(".insights")).toBeHidden();
+    await expect(page.locator("#nav-risk-badge")).toHaveText("1");
+    await page.locator('[data-nav="camera"]').click();
+    await expect(page.locator(".map-panel")).toBeHidden();
+    await expect(page.locator(".insights")).toBeVisible();
+    await expect(page.locator(".cam-card").first()).toBeVisible();
+    await page.locator('[data-nav="map"]').click();
+    await expect(page.locator(".map-panel")).toBeVisible();
+    await page.locator("#open-layers").click();
+    await expect(page.locator("#layer-sheet")).toBeVisible();
+    await page.locator("#close-layers").click();
+    await expect(page.locator("#layer-sheet")).toBeHidden();
+  });
+});
+
+test.describe("cameras", () => {
+  test("the camera page shows live thumbnails and opens the viewer", async ({ page, net }) => {
+    await page.goto("/");
+    await openTab(page, "camera");
+    const waterCard = page.locator('[data-viewer="water:dds1"]');
+    await expect(waterCard.locator(".cam-badge")).toHaveText("สด");
+    await waterCard.click();
+    const viewer = page.locator("#camera-viewer");
+    await expect(viewer).toBeVisible();
+    await expect(viewer.locator("img.viewer-media")).toHaveAttribute("src", /cctv1\.jpg\?t=\d+/);
+    await viewer.locator("[data-viewer-close]").click();
+    await expect(viewer).toBeHidden();
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("nationwide traffic cameras are listed nearest first and shown on the map", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#traffic-camera-note")).toHaveText("iTIC · 3 กล้อง");
+    await expect(page.locator(".traffic-cam-pin")).toHaveCount(3);
+    await openTab(page, "camera");
+    const trafficCards = page.locator('[data-viewer^="traffic:"]');
+    await expect(trafficCards).toHaveCount(3);
+    await expect(trafficCards.first()).toContainText("แยกรังสิต");
+    await expect(trafficCards.last()).toContainText("เชียงใหม่");
+    await trafficCards.first().click();
+    await expect(page.locator("#camera-viewer img.viewer-media")).toHaveAttribute("src", /near\.jpg\?t=\d+/);
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("a live video camera loads the HLS player (SRI verified) and falls back cleanly", async ({ page, net }) => {
+    await page.goto("/");
+    await openTab(page, "camera");
+    await page.locator('[data-viewer="traffic:itic-video"]').click();
+    await expect.poll(() => page.evaluate(() => typeof (/** @type {any} */ (window)).Hls)).toBe("function");
+    // The mocked stream host is unreachable, so the viewer must say so instead of hanging.
+    await expect(page.locator("#camera-viewer .viewer-message")).toContainText("วิดีโอจากกล้องนี้ไม่พร้อมใช้งาน");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("a failed camera feed is reported in the camera page", async ({ page, net }) => {
+    net.trafficCameras(json({ cameras: [], error: "ดึงรายชื่อกล้องจราจรไม่ได้ในขณะนี้" }, 502));
+    await page.goto("/");
+    await openTab(page, "camera");
+    await expect(page.locator("#tab-content")).toContainText("ดึงรายชื่อกล้องจราจรไม่ได้ในขณะนี้");
+    await expect(page.locator('[data-viewer^="water:"]').first()).toBeVisible();
   });
 });
 
@@ -103,7 +180,7 @@ test.describe("bank overflow", () => {
     await page.goto("/");
     await expect(page.locator("#risk-count")).toHaveText("ล้นตลิ่ง 1 · ใกล้ตลิ่ง 1 สถานี");
     await expect(page.locator(".overflow-pin")).toHaveCount(1);
-    await page.locator('.tab[data-tab="risk"]').click();
+    await openTab(page, "risk");
     const cards = page.locator("#tab-content .risk-card");
     await expect(cards).toHaveCount(2);
     await expect(cards.first()).toContainText("สถานีทดสอบ 11");
@@ -116,10 +193,12 @@ test.describe("bank overflow", () => {
 
   test("opening a normal station switches 'risk only' back off", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".station-card")).toHaveCount(8);
+    await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
+    await openLayers(page);
     await page.locator("label:has(#toggle-risk-only)").click();
     await expect(page.locator("#toggle-risk-only")).toBeChecked();
-    await page.locator('.station-card:has-text("สถานีทดสอบ 10")').first().click();
+    await openTab(page, "water");
+    await stationCards(page).filter({ hasText: "สถานีทดสอบ 10" }).first().click();
     await expect(page.locator("#toggle-risk-only")).not.toBeChecked();
     await expect(page.locator(".leaflet-popup-content")).toContainText("สถานีทดสอบ 10");
   });
@@ -138,7 +217,7 @@ test.describe("flood and traffic layers", () => {
     await page.goto("/");
     await expect(page.locator("#toggle-traffic")).toBeChecked();
     await expect.poll(() => net.requests.filter((url) => url.startsWith("https://api.tomtom.com/traffic/map/4/tile/flow/")).length).toBeGreaterThan(0);
-    await page.locator('[data-quick="road"]').click();
+    await openTab(page, "road");
     await expect(page.locator("#tab-content")).toContainText("ซ่อนการจราจร");
     expect(net.pageErrors).toEqual([]);
   });
@@ -146,6 +225,7 @@ test.describe("flood and traffic layers", () => {
   test("a viewer who switches traffic off keeps it off after reload", async ({ page, net }) => {
     await page.goto("/");
     await expect(page.locator("#toggle-traffic")).toBeChecked();
+    await openLayers(page);
     await page.locator("label:has(#toggle-traffic)").click();
     await expect(page.locator("#toggle-traffic")).not.toBeChecked();
     await page.reload();
@@ -163,7 +243,7 @@ test.describe("flood and traffic layers", () => {
     await expect(page.locator("#toggle-flood")).toBeDisabled();
     await expect(page.locator("#toggle-traffic")).toBeDisabled();
     await expect(page.locator("#flood-layer-note")).toHaveText("ยังไม่ได้ตั้งค่า GISTDA API key");
-    await page.locator('.tab[data-tab="flood"]').click();
+    await openTab(page, "flood");
     await expect(page.locator("#tab-content")).toContainText("GISTDA_API_KEY");
     expect(net.requests.some((url) => url.includes("/api/flood-wms"))).toBe(false);
   });
@@ -172,7 +252,7 @@ test.describe("flood and traffic layers", () => {
     await page.goto("/");
     await expect(page.locator("#road-flood-note")).toHaveText("ThaiWater · 2 จุดรายงาน");
     await expect(page.locator(".road-flood-pin")).toHaveCount(2);
-    await page.locator('.tab[data-tab="flood"]').click();
+    await openTab(page, "flood");
     const first = page.locator("#tab-content [data-road]").first();
     await expect(first).toContainText("ถ.พหลโยธิน ขาเข้า");
     await expect(first).toContainText("น้ำลึกประมาณ 25 ซม.");
@@ -184,7 +264,7 @@ test.describe("flood and traffic layers", () => {
   test("an unreadable road feed is not shown as 'no flooding'", async ({ page, net }) => {
     net.roadFlood({ status: 200, body: JSON.stringify({ reports: [], status: "unsupported-format" }) });
     await page.goto("/");
-    await page.locator('.tab[data-tab="flood"]').click();
+    await openTab(page, "flood");
     await expect(page.locator("#tab-content")).toContainText("ไม่ได้แปลว่าไม่มีน้ำท่วม");
   });
 });

@@ -1,10 +1,10 @@
 // Composition root: owns app state and wires modules to the DOM.
-import { CAMERA_SOURCES, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS } from "./config.js";
-import { fetchLayerConfig, fetchRoadFloods, fetchStations, NO_OPTIONAL_LAYERS } from "./api.js";
+import { CAMERA_SOURCES, DEFAULT_CAMERA_REFRESH_MS, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, THUMBNAIL_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
+import { fetchLayerConfig, fetchRoadFloods, fetchStations, fetchTrafficCameras, NO_OPTIONAL_LAYERS } from "./api.js";
 import { isLayerWanted, loadCachedStations, loadHome, saveCachedStations, saveHome, saveLayerPref } from "./storage.js";
-import { age, distanceKm, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
+import { age, distanceKm, fmtClock, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
 import { riskyStations } from "./risk.js";
-import { cameraTabHtml, floodTabHtml, riskTabHtml, roadTabHtml, waterTabHtml } from "./templates.js";
+import { alertBannerHtml, cameraTabHtml, floodTabHtml, riskTabHtml, roadTabHtml, waterTabHtml } from "./templates.js";
 import { createMap, focusOnMap } from "./map/map.js";
 import { createBasemap } from "./map/basemap.js";
 import { createStationsLayer } from "./map/stations-layer.js";
@@ -13,6 +13,8 @@ import { createLocationLayer } from "./map/location-layer.js";
 import { createFloodLayer } from "./map/flood-layer.js";
 import { createTrafficLayer } from "./map/traffic-layer.js";
 import { createRoadFloodLayer } from "./map/road-flood-layer.js";
+import { createTrafficCamerasLayer } from "./map/traffic-cameras-layer.js";
+import { createCameraViewer } from "./ui/camera-viewer.js";
 import { startClock } from "./ui/clock.js";
 import { byId, required } from "./ui/dom.js";
 import { createStatusView } from "./ui/status.js";
@@ -23,12 +25,16 @@ import { createListPanel } from "./ui/list-panel.js";
 /** @typedef {import("./types.js").Tab} Tab */
 /** @typedef {import("./types.js").LatLngTuple} LatLngTuple */
 /** @typedef {import("./types.js").LayerConfig} LayerConfig */
+/** @typedef {import("./types.js").TrafficCamera} TrafficCamera */
+/** @typedef {import("./types.js").ViewerCamera} ViewerCamera */
 
 /** @type {ReadonlyArray<Tab>} */
 const TABS = ["water", "risk", "flood", "camera", "road"];
 /** @param {string | undefined} value @returns {value is Tab} */
 const isTab = (value) => TABS.includes(/** @type {Tab} */ (value));
-const CAMERA_TAB_HTML = cameraTabHtml(CAMERA_SOURCES);
+const WATER_CAMERAS = CAMERA_SOURCES.filter((camera) => !camera.directory);
+const CAMERA_DIRECTORIES = CAMERA_SOURCES.filter((camera) => camera.directory);
+const mobileQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`);
 
 const ui = {
   mapPanel: required(".map-panel"),
@@ -47,7 +53,16 @@ const ui = {
   riskCount: byId("risk-count"),
   floodNote: byId("flood-layer-note"),
   roadNote: byId("road-flood-note"),
-  trafficNote: byId("traffic-note")
+  trafficNote: byId("traffic-note"),
+  toggleTrafficCameras: byId("toggle-traffic-cameras", HTMLInputElement),
+  trafficCameraNote: byId("traffic-camera-note"),
+  tabContent: byId("tab-content"),
+  alertBanner: byId("alert-banner", HTMLButtonElement),
+  updatedAt: byId("updated-at"),
+  navRiskBadge: byId("nav-risk-badge"),
+  layerSheet: byId("layer-sheet"),
+  openLayers: byId("open-layers", HTMLButtonElement),
+  kpi: { overflow: byId("kpi-overflow"), high: byId("kpi-high"), roads: byId("kpi-roads"), cameras: byId("kpi-cameras") }
 };
 
 const cached = loadCachedStations();
@@ -75,12 +90,34 @@ const state = {
   roadError: null,
   roadUnsupported: false,
   roadLoading: false,
-  floodError: false
+  floodError: false,
+  /** @type {TrafficCamera[] | null} null until the first successful load */
+  trafficCameras: null,
+  /** @type {string | null} */
+  trafficCameraError: null,
+  trafficCameraLimit: TRAFFIC_CAMERA_PAGE_SIZE
 };
 /** @returns {LatLngTuple} */
 const center = () => state.home ? [state.home.lat, state.home.lng] : state.you || RANGSIT;
-/** @param {ScrollLogicalPosition} [block] */
-const scrollToMap = (block = "start") => ui.mapPanel.scrollIntoView({ behavior: "smooth", block });
+/**
+ * On phones the map and the tab pages are separate screens; on larger screens they sit side by side.
+ * @param {"map" | "panel"} view
+ */
+function setView(view) {
+  document.body.dataset.view = view;
+  if (view === "map") {
+    map?.invalidateSize();
+    document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item instanceof HTMLElement && item.dataset.nav === "map"));
+  }
+  else ui.tabContent.scrollTop = 0;
+}
+
+/** Bring the map into view before focusing something on it. @param {ScrollLogicalPosition} [block] */
+function scrollToMap(block = "start") {
+  closeLayerSheet();
+  if (mobileQuery.matches) setView("map");
+  else ui.mapPanel.scrollIntoView({ behavior: "smooth", block });
+}
 
 // ---- Map & layers (all optional: the lists still work if Leaflet failed to load)
 const map = createMap("map", center());
@@ -90,6 +127,7 @@ const stationsLayer = map && createStationsLayer(map);
 const camerasLayer = map && createCamerasLayer(map, CAMERA_SOURCES);
 const locationLayer = map && createLocationLayer(map);
 const roadFloodLayer = map && createRoadFloodLayer(map);
+const trafficCamerasLayer = map && createTrafficCamerasLayer(map, { onOpen: (camera) => viewer.open(trafficViewerCamera(camera)) });
 /** @type {ReturnType<typeof createFloodLayer> | null} */
 let floodLayer = null;
 /** @type {ReturnType<typeof createTrafficLayer> | null} */
@@ -110,7 +148,10 @@ function riskView() {
       roads: state.roadFloods ? state.roadFloods.filter((report) => withinKm(from, NEARBY_RADIUS_KM, report)).length : null
     },
     hasStations: state.stations.length > 0,
-    riskOnly: ui.toggleRiskOnly.checked
+    riskOnly: ui.toggleRiskOnly.checked,
+    nearest: nearestStations(state.stations, from, NEAREST_STATION_LIMIT),
+    error: state.error,
+    fetchedAt: state.fetchedAt
   };
 }
 
@@ -129,12 +170,78 @@ function floodView() {
   };
 }
 
+function cameraView() {
+  const from = center();
+  /** @param {{ lat: number, lng: number }} point */
+  const km = (point) => distanceKm(from, [point.lat, point.lng]);
+  const traffic = state.trafficCameras
+    ? state.trafficCameras.map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance)
+    : null;
+  return {
+    water: WATER_CAMERAS.map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance),
+    directories: CAMERA_DIRECTORIES,
+    traffic: traffic ? traffic.slice(0, state.trafficCameraLimit) : null,
+    trafficTotal: state.trafficCameras?.length ?? 0,
+    trafficError: state.trafficCameraError,
+    hasMore: Boolean(traffic && traffic.length > state.trafficCameraLimit)
+  };
+}
+
+/** @param {TrafficCamera} camera @returns {ViewerCamera} */
+const trafficViewerCamera = (camera) => ({
+  id: `traffic:${camera.id}`, name: camera.name, meta: `${camera.org || "กล้องจราจร"} · ${camera.hls ? "วิดีโอสด" : "ภาพนิ่งอัปเดตเป็นระยะ"}`,
+  lat: camera.lat, lng: camera.lng, image: camera.image, hls: camera.hls, refreshMs: TRAFFIC_CAMERA_REFRESH_MS,
+  sourceUrl: TRAFFIC_CAMERA_SOURCE.url, sourceLabel: TRAFFIC_CAMERA_SOURCE.label
+});
+
+/** @param {Readonly<import("./types.js").Camera>} camera @returns {ViewerCamera} */
+const waterViewerCamera = (camera) => ({
+  id: `water:${camera.id}`, name: camera.name, meta: `${camera.area} · ${camera.source || "สำนักการระบายน้ำ กทม."}`,
+  lat: camera.lat, lng: camera.lng, image: camera.image ?? null, hls: null, refreshMs: camera.refreshMs || DEFAULT_CAMERA_REFRESH_MS,
+  sourceUrl: camera.url, sourceLabel: camera.source || "สำนักการระบายน้ำ กทม."
+});
+
+/** @param {string} key "water:<id>" or "traffic:<id>" @returns {ViewerCamera | null} */
+function viewerCameraFor(key) {
+  const [kind, ...rest] = key.split(":");
+  const id = rest.join(":");
+  if (kind === "water") { const camera = WATER_CAMERAS.find((item) => item.id === id); return camera ? waterViewerCamera(camera) : null; }
+  const camera = state.trafficCameras?.find((item) => item.id === id);
+  return camera ? trafficViewerCamera(camera) : null;
+}
+
+const viewer = createCameraViewer(byId("camera-viewer", HTMLDialogElement), {
+  onShowOnMap(camera) {
+    if (!map) return;
+    const [kind, ...rest] = camera.id.split(":");
+    const id = rest.join(":");
+    const marker = kind === "water" ? camerasLayer?.markerFor(id) : trafficCamerasLayer?.markerFor(id);
+    if (kind === "water") setToggle(ui.toggleCamera, true);
+    else setToggle(ui.toggleTrafficCameras, true);
+    scrollToMap();
+    focusOnMap(map, [camera.lat, camera.lng], FOCUS_ZOOM, marker);
+  }
+});
+
+/** Load (or reload) camera thumbnails in the camera tab; the cache-buster forces a fresh frame. */
+function refreshThumbnails() {
+  ui.tabContent.querySelectorAll("img[data-thumb]").forEach((img) => {
+    if (!(img instanceof HTMLImageElement)) return;
+    const card = img.closest(".cam-card");
+    const badge = card?.querySelector(".cam-badge");
+    const base = img.dataset.thumb ?? "";
+    img.onload = () => { if (badge) { badge.textContent = "สด"; badge.className = "cam-badge is-live"; } };
+    img.onerror = () => { if (badge) { badge.textContent = "ไม่มีสัญญาณ"; badge.className = "cam-badge is-offline"; } };
+    img.src = `${base}${base.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  });
+}
+
 /** @returns {string} */
 function tabHtml() {
   switch (state.tab) {
     case "risk": return riskTabHtml(riskView());
     case "flood": return floodTabHtml(floodView());
-    case "camera": return CAMERA_TAB_HTML;
+    case "camera": return cameraTabHtml(cameraView());
     case "road": return roadTabHtml({ trafficAvailable: state.config.traffic.available, trafficOn: ui.toggleTraffic.checked, roadFloodCount: state.roadFloods?.length ?? null });
     default: return waterTabHtml({
       nearest: nearestStations(state.stations, center(), NEAREST_STATION_LIMIT),
@@ -149,32 +256,41 @@ const listPanel = createListPanel(byId("tab-content"), {
   onStation(id) {
     const station = state.stations.find((s) => s.id === id);
     if (!station || !map) return;
+    // Show the map first: flying on a hidden (zero-size) map lands in the wrong place.
+    if (mobileQuery.matches) scrollToMap();
     showStation(station, Math.max(map.getZoom(), LOCATE_ZOOM));
-    if (window.innerWidth < MOBILE_BREAKPOINT_PX) scrollToMap();
   },
   onCamera(id) {
     const camera = CAMERA_SOURCES.find((item) => item.id === id);
     if (!camera || !map || !camerasLayer) return;
     setToggle(ui.toggleCamera, true);
-    focusOnMap(map, [camera.lat, camera.lng], FOCUS_ZOOM, camerasLayer.markerFor(camera.id));
     scrollToMap();
+    focusOnMap(map, [camera.lat, camera.lng], FOCUS_ZOOM, camerasLayer.markerFor(camera.id));
+  },
+  onViewer(key) {
+    const camera = viewerCameraFor(key);
+    if (camera) viewer.open(camera);
   },
   onRoad(id) {
     const report = state.roadFloods?.find((item) => item.id === id);
     if (!report || !map || !roadFloodLayer) return;
     setToggle(ui.toggleRoadFlood, true);
-    focusOnMap(map, [report.lat, report.lng], FOCUS_ZOOM, roadFloodLayer.markerFor(report.id));
     scrollToMap();
+    focusOnMap(map, [report.lat, report.lng], FOCUS_ZOOM, roadFloodLayer.markerFor(report.id));
   },
   onAction(action) {
     if (action === "retry") loadStations();
     else if (action === "toggle-traffic") { setToggle(ui.toggleTraffic, !ui.toggleTraffic.checked); saveLayerPref("traffic", ui.toggleTraffic.checked); }
     else if (action === "toggle-flood") { setToggle(ui.toggleFlood, !ui.toggleFlood.checked); saveLayerPref("flood", ui.toggleFlood.checked); }
     else if (action === "toggle-risk-only") setToggle(ui.toggleRiskOnly, !ui.toggleRiskOnly.checked);
+    else if (action === "more-traffic-cameras") { state.trafficCameraLimit += TRAFFIC_CAMERA_PAGE_SIZE; renderList(); }
   }
 });
 
-const renderList = () => listPanel.render(tabHtml());
+function renderList() {
+  if (listPanel.render(tabHtml()) && state.tab === "camera") refreshThumbnails();
+  renderSummary();
+}
 
 /**
  * Change a layer checkbox from code and run its normal change handler.
@@ -209,9 +325,45 @@ function setTab(tab) {
 
 /** @param {Tab} tab */
 function openSection(tab) {
+  closeLayerSheet();
   setTab(tab);
   document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item instanceof HTMLElement && item.dataset.nav === tab));
-  ui.insights.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (mobileQuery.matches) setView("panel");
+  else ui.insights.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** @param {boolean} open */
+function setLayerSheet(open) {
+  ui.layerSheet.classList.toggle("is-open", open);
+  ui.openLayers.setAttribute("aria-expanded", String(open));
+}
+const closeLayerSheet = () => setLayerSheet(false);
+
+/** Banner, summary numbers, alert badge and "updated" time. Cheap enough to run on every render. */
+function renderSummary() {
+  const from = center();
+  const risky = riskyStations(state.stations);
+  const overflow = risky.filter(({ risk }) => risk.status === "overflow").length;
+  const nearby = risky
+    .map(({ station, risk }) => ({ station, risk, distance: distanceKm(from, [station.lat, station.lng]) }))
+    .filter(({ distance }) => distance <= NEARBY_RADIUS_KM)
+    .sort((a, b) => (a.risk.status === b.risk.status ? a.distance - b.distance : a.risk.status === "overflow" ? -1 : 1))[0] ?? null;
+  const banner = alertBannerHtml(nearby);
+  ui.alertBanner.hidden = !banner;
+  if (banner) {
+    ui.alertBanner.innerHTML = banner.html;
+    ui.alertBanner.className = `alert-banner level-${banner.level}`;
+    ui.alertBanner.dataset.station = nearby?.station.id ?? "";
+  }
+  const hasData = state.stations.length > 0;
+  ui.kpi.overflow.textContent = hasData ? formatCount(overflow) : "–";
+  ui.kpi.high.textContent = hasData ? formatCount(risky.length - overflow) : "–";
+  ui.kpi.overflow.closest(".kpi")?.classList.toggle("is-alert", overflow > 0);
+  ui.kpi.roads.textContent = state.roadFloods ? formatCount(state.roadFloods.length) : "–";
+  ui.kpi.cameras.textContent = formatCount(WATER_CAMERAS.length + (state.trafficCameras?.length ?? 0));
+  ui.navRiskBadge.hidden = overflow === 0;
+  ui.navRiskBadge.textContent = overflow > 99 ? "99+" : String(overflow);
+  ui.updatedAt.textContent = fmtClock(state.fetchedAt);
 }
 
 function renderLocation() {
@@ -285,6 +437,20 @@ async function loadRoadFloods() {
   }
 }
 
+async function loadTrafficCameras() {
+  try {
+    state.trafficCameras = await fetchTrafficCameras();
+    state.trafficCameraError = null;
+    trafficCamerasLayer?.update(state.trafficCameras);
+    ui.trafficCameraNote.textContent = `iTIC · ${formatCount(state.trafficCameras.length)} กล้อง`;
+  } catch (error) {
+    state.trafficCameraError = error instanceof Error && error.message ? error.message : "โหลดรายชื่อกล้องจราจรไม่ได้";
+    ui.trafficCameraNote.textContent = "iTIC · โหลดไม่ได้";
+  } finally {
+    renderList();
+  }
+}
+
 async function loadLayerConfig() {
   state.config = await fetchLayerConfig();
   const { flood, traffic } = state.config;
@@ -322,7 +488,20 @@ ui.toggleRoadFlood.addEventListener("change", () => {
   roadFloodLayer?.setVisible(ui.toggleRoadFlood.checked);
   if (ui.toggleRoadFlood.checked && age(state.roadFetchedAt) >= STATION_REFRESH_MS) loadRoadFloods();
 });
-ui.toggleCamera.addEventListener("change", () => { camerasLayer?.setVisible(ui.toggleCamera.checked); if (ui.toggleCamera.checked) setTab("camera"); });
+ui.toggleCamera.addEventListener("change", () => camerasLayer?.setVisible(ui.toggleCamera.checked));
+ui.toggleTrafficCameras.addEventListener("change", () => trafficCamerasLayer?.setVisible(ui.toggleTrafficCameras.checked));
+ui.openLayers.addEventListener("click", () => setLayerSheet(!ui.layerSheet.classList.contains("is-open")));
+byId("close-layers").addEventListener("click", closeLayerSheet);
+ui.alertBanner.addEventListener("click", () => {
+  const station = state.stations.find((s) => s.id === ui.alertBanner.dataset.station);
+  if (!station) return;
+  scrollToMap();
+  showStation(station, FOCUS_ZOOM);
+});
+document.querySelectorAll("[data-kpi]").forEach((button) => button.addEventListener("click", () => {
+  const tab = button instanceof HTMLElement ? button.dataset.kpi : undefined;
+  if (isTab(tab)) showSection(tab);
+}));
 byId("map-locate").addEventListener("click", () => ui.locate.click());
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
   const tab = button instanceof HTMLElement ? button.dataset.tab : undefined;
@@ -361,7 +540,7 @@ ui.locate.addEventListener("click", () => {
 
 /** Turn on the layers a section is about, then open it. @param {Tab} tab */
 function showSection(tab) {
-  if (tab === "camera") { setToggle(ui.toggleCamera, true); if (camerasLayer) map?.fitBounds(camerasLayer.bounds(), { padding: [36, 36], maxZoom: 10 }); }
+  if (tab === "camera") setToggle(ui.toggleCamera, true);
   if (tab === "water") setToggle(ui.toggleWater, true);
   if (tab === "risk") setToggle(ui.toggleWater, true);
   if (tab === "flood") { setToggle(ui.toggleFlood, true); setToggle(ui.toggleRoadFlood, true); }
@@ -378,7 +557,7 @@ document.querySelectorAll("[data-nav]").forEach((button) => button.addEventListe
   document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button));
   const choice = button instanceof HTMLElement ? button.dataset.nav : undefined;
   if (choice === "locate") { ui.locate.click(); scrollToMap(); }
-  else if (choice === "map") scrollToMap();
+  else if (choice === "map") { scrollToMap(); document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button)); }
   else if (isTab(choice)) showSection(choice);
 }));
 
@@ -405,12 +584,18 @@ if (state.stations.length) {
   renderRiskCount();
 }
 roadFloodLayer?.setVisible(ui.toggleRoadFlood.checked);
+trafficCamerasLayer?.setVisible(ui.toggleTrafficCameras.checked);
+setView("map");
 renderList();
+loadTrafficCameras();
 loadStations();
 loadRoadFloods();
 loadLayerConfig();
 basemap?.setStyle(ui.mapStyle.value);
 setInterval(() => { if (!document.hidden) { loadStations(); loadRoadFloods(); } }, STATION_REFRESH_MS);
+setInterval(() => { if (!document.hidden && state.tab === "camera") refreshThumbnails(); }, THUMBNAIL_REFRESH_MS);
+// Leaving the phone layout (rotate/resize) must not leave the map hidden.
+mobileQuery.addEventListener("change", () => { if (!mobileQuery.matches) setView("map"); });
 // Background tabs skip the interval, so catch up as soon as the page is visible again.
 document.addEventListener("visibilitychange", () => {
   if (document.hidden || age(state.fetchedAt) < STATION_REFRESH_MS) return;

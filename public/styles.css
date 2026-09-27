@@ -60,3 +60,88 @@
 
 @media(prefers-reduced-motion:reduce){.overflow-ring{animation:none;opacity:.8}}
 @media(max-width:720px){.map-legend{display:none}}
+
+/* ---- Header status, "near you" banner and summary strip ---- */
+.updated-at{font-size:12px;color:#b6d1d9;white-space:nowrap}
+.updated-at b{font:700 13px Manrope,sans-serif;color:#fff}
+.alert-banner{display:block;width:100%;border:0;text-align:left;padding:11px clamp(18px,3.8vw,64px);font:600 15px/1.4 'IBM Plex Sans Thai',sans-serif;color:#fff;background:#a3122f;cursor:pointer}
+.alert-banner[hidden]{display:none}
+.alert-banner.level-high{background:#b85a0b}
+.alert-banner small{opacity:.8;margin-left:6px;font-size:12px}
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-bottom:1px solid var(--line)}
+.kpi{border:0;border-right:1px solid var(--line);background:none;padding:10px 6px;text-align:center;color:inherit}
+.kpi:last-child{border-right:0}
+.kpi strong{display:block;font:800 24px/1.15 Manrope,sans-serif;color:var(--ink)}
+.kpi span{font-size:11px;color:var(--muted)}
+.kpi.is-alert strong{color:#d6334a}
+.filter-button,.sheet-close{display:none}
+
+/* ---- Camera grid, pins and viewer ---- */
+.cam-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.cam-card{position:relative;display:block;border:0;padding:0;border-radius:12px;overflow:hidden;background:#0f1d2b;aspect-ratio:16/10;cursor:pointer;color:#fff;text-align:left}
+.cam-thumb{position:absolute;inset:0;display:grid;place-items:center}
+.cam-thumb img{width:100%;height:100%;object-fit:cover}
+.cam-video{font-size:30px;color:#ffffffb3}
+.cam-badge{position:absolute;left:8px;top:8px;background:#000a;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700}
+.cam-badge.is-live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#35d07f;margin-right:5px;vertical-align:1px}
+.cam-badge.is-offline{background:#7a2334}
+.cam-play{position:absolute;right:8px;top:6px;font-size:13px;background:#000a;border-radius:999px;padding:2px 8px}
+.cam-caption{position:absolute;left:0;right:0;bottom:0;padding:20px 9px 7px;background:linear-gradient(transparent,#000d)}
+.cam-caption strong,.cam-caption small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cam-caption strong{font-size:12px}
+.cam-caption small{font-size:10px;opacity:.8}
+.cam-card:focus-visible{outline:3px solid #43bdb7;outline-offset:2px}
+.more-button{width:100%;justify-content:center;border:0;cursor:pointer;margin:-4px 0 14px}
+.layer-icon.navy{background:#e7eef7;color:#1d5fa8}
+.traffic-cam-pin{width:24px;height:24px;border-radius:7px;background:#1d5fa8;color:#fff;border:2px solid #fff;display:grid;place-items:center;box-shadow:0 2px 8px #0004}
+.traffic-cam-pin svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.camera-popup .link-button{border:0;cursor:pointer;margin-top:8px}
+
+.camera-viewer{border:0;border-radius:16px;padding:0;width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 24px);background:#0f1d2b;color:#fff;overflow:auto}
+.camera-viewer::backdrop{background:#0b1622d9}
+.viewer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 14px}
+.viewer-head strong{font-size:16px}
+.viewer-head small{display:block;color:#a9bccb;font-size:12px;margin-top:2px}
+.viewer-close{flex:none;border:0;background:#ffffff26;color:#fff;border-radius:10px;width:38px;height:38px;font-size:16px}
+.viewer-body{background:#000;aspect-ratio:16/9;display:grid;place-items:center}
+.viewer-media{width:100%;height:100%;object-fit:contain;background:#000}
+.viewer-message{padding:20px;text-align:center;color:#d5e1ea}
+.viewer-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap;font-size:12px}
+.viewer-foot a{color:#8fd3ff}
+.viewer-foot .link-button{border:0;cursor:pointer}
+
+.nav-icon{position:relative;display:inline-block}
+.nav-badge{position:absolute;top:-6px;right:-14px;min-width:18px;height:18px;border-radius:9px;background:#d6334a;color:#fff;font:700 11px/18px Manrope,sans-serif;padding:0 5px;font-style:normal}
+.nav-badge[hidden]{display:none}
+
+/* ---- Mobile app shell: map fills the screen; each bottom tab opens a full page ---- */
+@media(max-width:720px){
+  .shell{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  .topbar,.alert-banner,.kpi-strip{flex:none}
+  .alert-banner{padding:10px 14px;font-size:14px}
+  .kpi{padding:7px 3px}
+  .kpi strong{font-size:20px}
+  .kpi span{font-size:10px}
+  /* width:100% because the desktop margin:auto would otherwise shrink .main to 0 inside this column flexbox */
+  .main{flex:1;min-height:0;width:100%;margin:0;display:flex;flex-direction:column;padding:0 0 calc(64px + env(safe-area-inset-bottom))}
+  .workspace{flex:1;min-height:0;display:flex;flex-direction:column;height:auto}
+  .map-panel{flex:1;height:auto;min-height:0}
+  body[data-view="panel"] .map-panel{display:none}
+  body:not([data-view="panel"]) .insights{display:none}
+  body[data-view="panel"] .insights{display:flex;flex:1;min-height:0;order:1;border:0}
+  .insights-head,.insights .tablist{display:none}
+  .tab-content{flex:1;overflow-y:auto;max-height:none;padding:14px 12px 20px}
+  .insights-footer{display:none}
+  .sidebar{display:none}
+  .sidebar.is-open{display:flex;position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));max-height:72dvh;z-index:1450;border-radius:18px 18px 0 0;box-shadow:0 -10px 30px #10283f40;overflow-y:auto}
+  .sheet-close{display:block;align-self:flex-end;border:0;background:#eef3f5;color:#254359;border-radius:9px;padding:6px 12px;font-weight:700;margin:-6px -4px 6px}
+  .filter-button{display:inline-flex;align-items:center;margin-top:8px;border:1px solid #d7e5ea;border-radius:20px;background:#fff;box-shadow:0 3px 12px #10283f20;padding:7px 13px;color:#146d83;font-size:12px;font-weight:800}
+  /* Search + filter on one row; the bottom menu replaces the quick-filter chips. */
+  .map-explore{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;width:calc(100% - 24px);right:12px}
+  .map-explore .search-message{grid-column:1/-1;margin-top:0}
+  .map-explore .quick-filters{display:none}
+  .filter-button{margin-top:0;height:46px;border-radius:13px}
+  .map-top{top:68px}
+  .map-locate{bottom:104px}
+  .mobile-nav .nav-icon{font-size:22px}
+}

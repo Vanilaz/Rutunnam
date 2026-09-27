@@ -1,5 +1,5 @@
-import { CONFIG_API_URL, FETCH_TIMEOUT_MS, ROAD_FLOOD_API_URL, WATER_API_URL } from "./config.js";
-import { validRoadFloods, validStations } from "./utils.js";
+import { CONFIG_API_URL, FETCH_TIMEOUT_MS, ROAD_FLOOD_API_URL, TRAFFIC_CAMERAS_API_URL, WATER_API_URL } from "./config.js";
+import { validRoadFloods, validStations, validTrafficCameras } from "./utils.js";
 
 /** @typedef {{ stations: import("./types.js").Station[], fetchedAt: string, warning: string | null }} StationFeed */
 /** @typedef {import("./types.js").LayerConfig} LayerConfig */
@@ -65,4 +65,11 @@ export async function fetchRoadFloods() {
   const { ok, status, data } = await getJson(ROAD_FLOOD_API_URL);
   if (!ok) throw new Error(data?.error || `รายงานถนนน้ำท่วมไม่พร้อมใช้งาน (HTTP ${status})`);
   return { reports: validRoadFloods(data?.reports), fetchedAt: data?.fetchedAt || new Date().toISOString(), unsupported: data?.status === "unsupported-format" };
+}
+
+/** @returns {Promise<import("./types.js").TrafficCamera[]>} */
+export async function fetchTrafficCameras() {
+  const { ok, status, data } = await getJson(TRAFFIC_CAMERAS_API_URL);
+  if (!ok) throw new Error(data?.error || `รายชื่อกล้องจราจรไม่พร้อมใช้งาน (HTTP ${status})`);
+  return validTrafficCameras(data?.cameras);
 }

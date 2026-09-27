@@ -16,8 +16,15 @@ const MIRROR_FILES = {
   "cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js": "leaflet.min.js",
   "unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js": "maplibre-gl.js",
   "unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css": "maplibre-gl.css",
-  "unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js": "leaflet-maplibre-gl.js"
+  "unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js": "leaflet-maplibre-gl.js",
+  "cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js": "hls.min.js"
 };
+
+const TRAFFIC_CAMERAS = [
+  { id: "itic-near", name: "แยกรังสิต", org: "กรมทางหลวง", lat: 13.99, lng: 100.62, image: "https://cam.example.go.th/near.jpg", hls: null },
+  { id: "itic-video", name: "ทล.1 ขาเข้า", org: "กรมทางหลวง", lat: 14.02, lng: 100.63, image: null, hls: "https://camera1.iticfoundation.org/hls/test.stream/playlist.m3u8" },
+  { id: "itic-far", name: "เชียงใหม่ แยกทดสอบ", org: "เทศบาล", lat: 18.79, lng: 98.98, image: "https://cam.example.go.th/far.jpg", hls: null }
+];
 
 /** @param {number} count */
 function makeStations(count) {
@@ -39,7 +46,7 @@ function makeStations(count) {
 
 /**
  * @typedef {{ status: number, body: string, contentType?: string }} ApiReply
- * @typedef {{ api: (reply: ApiReply | (() => ApiReply)) => void, config: (reply: ApiReply) => void, roadFlood: (reply: ApiReply) => void,
+ * @typedef {{ api: (reply: ApiReply | (() => ApiReply)) => void, config: (reply: ApiReply) => void, roadFlood: (reply: ApiReply) => void, trafficCameras: (reply: ApiReply) => void,
  *   vectorStyle: (ok: boolean) => void, pageErrors: string[], requests: string[] }} Net
  */
 
@@ -68,6 +75,8 @@ async function netFixture({ page }, use) {
   let config = json(FULL_CONFIG);
   /** @type {ApiReply} */
   let roadFlood = json({ reports: ROAD_REPORTS, status: "ok", fetchedAt: new Date().toISOString() });
+  /** @type {ApiReply} */
+  let trafficCameras = json({ cameras: TRAFFIC_CAMERAS, fetchedAt: new Date().toISOString() });
   /** @type {string[]} */
   const requests = [];
   let styleOk = false;
@@ -86,6 +95,8 @@ async function netFixture({ page }, use) {
       return route.fulfill({ status: reply.status, body: reply.body, contentType: reply.contentType || "application/json" });
     }
     if (pathname === "/api/config") return route.fulfill({ status: config.status, body: config.body, contentType: "application/json" });
+    if (pathname === "/api/traffic-cameras") return route.fulfill({ status: trafficCameras.status, body: trafficCameras.body, contentType: "application/json" });
+    if (host === "camera1.iticfoundation.org") return route.abort();
     if (pathname === "/api/road-flood") return route.fulfill({ status: roadFlood.status, body: roadFlood.body, contentType: "application/json" });
     if (pathname === "/api/flood-wms") return route.fulfill({ body: PNG, contentType: "image/png" });
     if (host.startsWith("localhost")) return route.continue();
@@ -104,14 +115,32 @@ async function netFixture({ page }, use) {
     api: (reply) => { api = reply; },
     config: (reply) => { config = reply; },
     roadFlood: (reply) => { roadFlood = reply; },
+    trafficCameras: (reply) => { trafficCameras = reply; },
     requests,
     vectorStyle: (ok) => { styleOk = ok; },
     pageErrors
   });
 }
 
+/** Desktop uses the tab row; phones use the bottom menu, where the risk page also lists nearby stations. */
+const isMobile = () => base.info().project.name === "mobile";
+
+/** @param {import("@playwright/test").Page} page @param {"water" | "risk" | "flood" | "camera" | "road"} tab */
+async function openTab(page, tab) {
+  if (isMobile()) await page.locator(`[data-nav="${tab === "water" ? "risk" : tab}"]`).click();
+  else await page.locator(`.tab[data-tab="${tab}"]`).click();
+}
+
+/** Plain station cards (not risk cards) in whichever list shows nearby stations. @param {import("@playwright/test").Page} page */
+const stationCards = (page) => page.locator("#tab-content .station-card[data-station]:not(.risk-card)");
+
+/** On phones the layer switches live in a sheet behind the filter button. @param {import("@playwright/test").Page} page */
+async function openLayers(page) {
+  if (isMobile()) await page.locator("#open-layers").click();
+}
+
 // Every test gets the mocks (`auto`), even if it never touches `net`.
 /** @type {import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & { net: Net }, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>} */
 const test = base.extend({ net: [netFixture, { auto: true }] });
 
-module.exports = { test, expect, okReply, makeStations, json };
+module.exports = { test, expect, okReply, makeStations, json, openTab, stationCards, openLayers, isMobile };

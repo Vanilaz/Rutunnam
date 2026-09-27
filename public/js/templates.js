@@ -100,31 +100,65 @@ export function floodTabHtml({ floodAvailable, floodOn, floodPeriod, floodError,
 
 /**
  * @param {{ items: { station: Station, risk: StationRisk, distance: number }[], total: number,
- *   nearby: { overflow: number, high: number, roads: number | null }, hasStations: boolean, riskOnly: boolean }} view
+ *   nearby: { overflow: number, high: number, roads: number | null }, hasStations: boolean, riskOnly: boolean, nearest?: StationDistance[],
+ *   error?: string | null, fetchedAt?: string | null }} view
  */
-export function riskTabHtml({ items, total, nearby, hasStations, riskOnly }) {
-  if (!hasStations) return `<div class="empty"><strong>กำลังโหลดสถานี</strong><p>รอสักครู่เพื่อประเมินจุดเสี่ยงจากข้อมูลตรวจวัดล่าสุด</p></div>`;
-  const summary = `<div class="nearby-summary" aria-label="สรุปรอบจุดศูนย์กลาง ${NEARBY_RADIUS_KM} กม."><div><strong class="risk-text-overflow">${nearby.overflow}</strong><span>ล้นตลิ่ง</span></div><div><strong class="risk-text-high">${nearby.high}</strong><span>ใกล้ตลิ่ง</span></div><div><strong>${nearby.roads ?? "—"}</strong><span>ถนนน้ำท่วม</span></div></div><p class="subtle">ในรัศมี ${NEARBY_RADIUS_KM} กม. จากจุดศูนย์กลาง (บ้าน/ตำแหน่งฉัน/รังสิต)</p>`;
+export function riskTabHtml({ items, total, nearby, hasStations, riskOnly, nearest = [], error = null, fetchedAt = null }) {
+  // On phones this tab replaces the water-level tab, so it carries the same error and cache states.
+  if (!hasStations) return waterTabHtml({ nearest: [], hasStations, error, fetchedAt });
+  const warning = error ? `<div class="cache-warning">ข้อมูลใหม่ยังไม่พร้อม · แสดงข้อมูลที่ดึง ${esc(fmtTime(fetchedAt))}</div>` : "";
+  const summary = `${warning}<div class="nearby-summary" aria-label="สรุปรอบจุดศูนย์กลาง ${NEARBY_RADIUS_KM} กม."><div><strong class="risk-text-overflow">${nearby.overflow}</strong><span>ล้นตลิ่ง</span></div><div><strong class="risk-text-high">${nearby.high}</strong><span>ใกล้ตลิ่ง</span></div><div><strong>${nearby.roads ?? "—"}</strong><span>ถนนน้ำท่วม</span></div></div><p class="subtle">ในรัศมี ${NEARBY_RADIUS_KM} กม. จากจุดศูนย์กลาง (บ้าน/ตำแหน่งฉัน/รังสิต)</p>`;
   const toggle = `<button class="link-button" data-action="toggle-risk-only" type="button">${riskOnly ? "แสดงทุกสถานีบนแผนที่" : "แสดงเฉพาะจุดเสี่ยงบนแผนที่"}</button>`;
-  if (!items.length) return `${summary}<div class="empty"><strong>ยังไม่พบสถานีที่น้ำล้นหรือใกล้ตลิ่ง</strong><p>ประเมินจากข้อมูลล่าสุดของ ThaiWater ที่มีเวลาตรวจวัดไม่เกิน 6 ชั่วโมง</p></div>`;
+  const nearestHtml = nearest.length ? `<div class="content-heading"><strong>สถานีวัดน้ำใกล้คุณ</strong><span>${nearest.length} สถานี</span></div>${nearest.map(stationCardHtml).join("")}` : "";
+  if (!items.length) return `${summary}<div class="empty"><strong>ยังไม่พบสถานีที่น้ำล้นหรือใกล้ตลิ่ง</strong><p>ประเมินจากข้อมูลล่าสุดของ ThaiWater ที่มีเวลาตรวจวัดไม่เกิน 6 ชั่วโมง</p></div>${nearestHtml}`;
   const list = items.map(({ station: s, risk, distance }) => `<button type="button" class="station-card risk-card risk-edge-${risk.status}" data-station="${esc(s.id)}"><span class="row"><strong>${esc(s.name)}</strong><span class="distance">${distance.toFixed(1)} km</span></span><span class="meta">${esc(s.province || s.river || "ข้อมูลสถานี")}</span><span class="row">${riskBadge(risk)}<span class="value">${levelText(s)} <small>ม. รทก.</small></span></span><span class="time">${bankLine(risk)} · ${esc(fmtTime(s.measuredAt))}</span></button>`).join("");
   const more = total > items.length ? `<p class="subtle">แสดง ${items.length} จาก ${total} สถานี เรียงจากเสี่ยงมากไปน้อย</p>` : "";
-  return `${summary}<div class="content-heading"><strong>จุดที่น้ำล้นหรือใกล้ตลิ่งทั่วประเทศ</strong><span>${total} สถานี</span></div>${toggle}${list}${more}<p class="subtle">เกณฑ์: ใช้ % ความจุลำน้ำที่ ThaiWater คำนวณ (เกิน 100% = ล้นตลิ่ง, เกิน 70% = น้ำมาก) หรือเทียบระดับน้ำกับระดับตลิ่งต่ำสุดที่เผยแพร่ ตำแหน่งบนแผนที่คือจุดตั้งสถานี ไม่ใช่แนวตลิ่งทั้งเส้น</p>`;
+  return `${summary}<div class="content-heading"><strong>จุดที่น้ำล้นหรือใกล้ตลิ่งทั่วประเทศ</strong><span>${total} สถานี</span></div>${toggle}${list}${more}${nearestHtml}<p class="subtle">เกณฑ์: ใช้ % ความจุลำน้ำที่ ThaiWater คำนวณ (เกิน 100% = ล้นตลิ่ง, เกิน 70% = น้ำมาก) หรือเทียบระดับน้ำกับระดับตลิ่งต่ำสุดที่เผยแพร่ ตำแหน่งบนแผนที่คือจุดตั้งสถานี ไม่ใช่แนวตลิ่งทั้งเส้น</p>`;
 }
 
-/** @param {ReadonlyArray<Readonly<Camera>>} cameras */
-export function cameraTabHtml(cameras) {
-  const images = cameras.filter((c) => !c.directory);
-  const directories = cameras.filter((c) => c.directory);
-  const bmaCount = images.filter((c) => !c.source).length;
-  const cards = cameras.map((camera) => infoCard(
-    esc(camera.name),
-    `${esc(camera.area)} · ${camera.directory ? esc(camera.note) : `ภาพจาก${esc(camera.source || "กล้อง กทม.")}`}`,
-    camera.directory
-      ? external(camera.url, "เปิดศูนย์กล้อง ↗")
-      : `<button class="link-button camera-open" data-camera="${esc(camera.id)}" type="button">ดูภาพบนแผนที่</button>`
-  )).join("");
-  return `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${images.length} กล้อง · ${directories.length} ศูนย์</span></div><p class="subtle">กล้อง กทม. ${bmaCount} จุด และกล้องระดับน้ำสะพานแดงของเทศบาลนครรังสิต กดเพื่อดูภาพบนแผนที่</p>${cards}<p class="subtle">ภาพเป็นชุด JPEG ที่ต้นทางอัปเดตเป็นระยะ ไม่ใช่วิดีโอสตรีม หากภาพไม่ขึ้นให้เปิดเว็บไซต์ต้นทาง</p>`;
+/**
+ * A thumbnail card; the image URL goes in data-thumb and is loaded (with cache-busting) by the page.
+ * @param {{ key: string, name: string, caption: string, image: string | null, video: boolean }} card
+ */
+function cameraCardHtml({ key, name, caption, image, video }) {
+  const thumb = image
+    ? `<span class="cam-thumb"><img data-thumb="${esc(image)}" alt="" loading="lazy"></span>`
+    : `<span class="cam-thumb cam-video" aria-hidden="true">▶</span>`;
+  const badge = image ? `<span class="cam-badge">กำลังโหลด</span>` : `<span class="cam-badge is-live">วิดีโอสด</span>`;
+  return `<button type="button" class="cam-card" data-viewer="${esc(key)}" aria-label="ดูกล้อง ${esc(name)}">${thumb}${badge}${video && image ? `<span class="cam-play" aria-hidden="true">▶</span>` : ""}<span class="cam-caption"><strong>${esc(name)}</strong><small>${esc(caption)}</small></span></button>`;
+}
+
+/**
+ * @param {{ water: { camera: Readonly<Camera>, distance: number }[], directories: ReadonlyArray<Readonly<Camera>>,
+ *   traffic: { camera: import("./types.js").TrafficCamera, distance: number }[] | null, trafficTotal: number,
+ *   trafficError: string | null, hasMore: boolean }} view
+ */
+export function cameraTabHtml({ water, directories, traffic, trafficTotal, trafficError, hasMore }) {
+  const waterCards = water.map(({ camera, distance }) => cameraCardHtml({ key: `water:${camera.id}`, name: camera.name, caption: `${camera.source || "กทม."} · ${distance.toFixed(1)} km`, image: camera.image ?? null, video: false })).join("");
+  let trafficHtml;
+  if (trafficError) trafficHtml = `<div class="cache-warning">${esc(trafficError)}</div>`;
+  else if (traffic === null) trafficHtml = `<p class="subtle">กำลังโหลดรายชื่อกล้องจราจร...</p>`;
+  else if (!traffic.length) trafficHtml = `<p class="subtle">ยังไม่มีกล้องจราจรที่ส่งภาพได้จากฟีดต้นทาง</p>`;
+  else trafficHtml = `<div class="cam-grid">${traffic.map(({ camera, distance }) => cameraCardHtml({ key: `traffic:${camera.id}`, name: camera.name, caption: `${camera.org || "กล้องจราจร"} · ${distance.toFixed(1)} km`, image: camera.image, video: Boolean(camera.hls) })).join("")}</div>`
+    + (hasMore ? `<button type="button" class="link-button more-button" data-action="more-traffic-cameras">แสดงกล้องเพิ่ม</button>` : "");
+  const links = directories.map((camera) => infoCard(esc(camera.name), `${esc(camera.area)} · ${esc(camera.note)}`, external(camera.url, "เปิดศูนย์กล้อง ↗"))).join("");
+  return `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${water.length} กล้อง</span></div><div class="cam-grid">${waterCards}</div>`
+    + `<div class="content-heading"><strong>กล้องจราจรใกล้คุณ</strong><span>${trafficTotal ? `${trafficTotal} กล้องทั่วประเทศ` : ""}</span></div>${trafficHtml}`
+    + `<p class="subtle">กล้องจราจรจากฟีด iTIC / Longdo Traffic ครอบคลุมหลายจังหวัด บางกล้องอาจหยุดส่งภาพชั่วคราว ภาพเป็นชุด JPEG หรือวิดีโอสดจากหน่วยงานต้นทาง</p>`
+    + links;
+}
+
+/**
+ * Red/orange strip under the header, e.g. "ใกล้คุณ: ล้นตลิ่ง · คลองเปรมประชากร".
+ * @param {{ station: Station, risk: StationRisk, distance: number } | null} nearest
+ * @returns {{ html: string, level: "overflow" | "high" } | null}
+ */
+export function alertBannerHtml(nearest) {
+  if (!nearest) return null;
+  const level = nearest.risk.status === "overflow" ? "overflow" : "high";
+  const label = level === "overflow" ? "ล้นตลิ่ง" : "น้ำใกล้ตลิ่ง";
+  const margin = nearest.risk.margin !== null && nearest.risk.margin > 0 ? ` (${formatMargin(nearest.risk.margin)})` : "";
+  return { level, html: `<strong>ใกล้คุณ: ${label}</strong> · ${esc(nearest.station.name)}${margin} <small>${nearest.distance.toFixed(1)} km</small>` };
 }
 
 /** @param {StationDistance} item */

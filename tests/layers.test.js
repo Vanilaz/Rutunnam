@@ -131,3 +131,36 @@ test("flood WMS proxy treats an XML error with HTTP 200 as a failure and redacts
     assert.equal(out.statusCode, 502);
   });
 });
+
+test("traffic camera feed keeps only cameras that can show a picture", () => {
+  const { normalizeTrafficCameras } = require("../lib/traffic-cameras");
+  const { cameras, upstreamRows } = normalizeTrafficCameras([
+    { camid: "A1", title: " แยก  ทดสอบ ", organization: "กทม.", latitude: "13.75", longitude: "100.5", imgurl: "https://example.go.th/cam/a1.jpg" },
+    { camid: "DOH-PER-3-006-out", title: "ทล.1", latitude: 14.1, longitude: 100.6, imgurl: "https://x/X.X.X.X/img.jpg", hls_url: "https://camera1.iticfoundation.org/hls/phase3/per_3_006_out.stream/playlist.m3u8" },
+    { camid: "B2", latitude: 13.7, longitude: 100.5, imgurl: "http://insecure.example/b2.jpg" },
+    { camid: "C3", latitude: 13.7, longitude: 100.5, hls_url: "https://unknown-host.example/live.m3u8" },
+    { camid: "D4", latitude: 13.7, longitude: 100.5, imgurl: "https://cam.example/CAMPK01.jpg" },
+    { camid: "E5", latitude: 40, longitude: 100.5, imgurl: "https://cam.example/e5.jpg" },
+    { camid: "A1", latitude: 13.75, longitude: 100.5, imgurl: "https://example.go.th/cam/dup.jpg" },
+    null
+  ]);
+  assert.equal(upstreamRows, 8);
+  assert.deepEqual(cameras.map((c) => c.id), ["itic-A1", "itic-DOH-PER-3-006-out"]);
+  assert.equal(cameras[0].name, "แยก ทดสอบ");
+  assert.equal(cameras[1].image, null);
+  assert.match(cameras[1].hls, /^https:\/\/camera1\.iticfoundation\.org\//);
+});
+
+test("traffic camera API serves the last good list when the feed is down", async () => {
+  const handler = require("../api/traffic-cameras");
+  const good = mockResponse();
+  await withFetch(async () => ({ ok: true, json: async () => [{ camid: "A1", latitude: 13.75, longitude: 100.5, imgurl: "https://example.go.th/a1.jpg" }] }), async () => {
+    await handler({ method: "GET" }, good.res);
+  });
+  assert.equal(good.body.cameras.length, 1);
+  const down = mockResponse();
+  await withFetch(async () => ({ ok: false, status: 500 }), async () => { await handler({ method: "GET" }, down.res); });
+  assert.equal(down.statusCode, 200);
+  assert.equal(down.body.stale, true);
+  assert.equal(down.body.cameras.length, 1);
+});

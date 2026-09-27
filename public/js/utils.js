@@ -67,6 +67,36 @@ export function validRoadFloods(list) {
     }));
 }
 
+/** @param {unknown} url @returns {string | null} */
+const httpsOrNull = (url) => typeof url === "string" && url.startsWith("https://") ? url : null;
+
+/**
+ * @param {unknown} list
+ * @returns {import("./types.js").TrafficCamera[]}
+ */
+export function validTrafficCameras(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((c) => c && typeof c === "object" && typeof c.id === "string" && Number.isFinite(c.lat) && Number.isFinite(c.lng))
+    .map((c) => ({
+      id: c.id,
+      name: typeof c.name === "string" && c.name ? c.name : "กล้องจราจร",
+      org: typeof c.org === "string" ? c.org : "",
+      lat: c.lat,
+      lng: c.lng,
+      image: httpsOrNull(c.image),
+      hls: httpsOrNull(c.hls)
+    }))
+    .filter((c) => c.image || c.hls);
+}
+
+const clockWithSeconds = new Intl.DateTimeFormat("th-TH", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+/** "11:28:45", or "--:--" when unknown. @param {unknown} value */
+export function fmtClock(value) {
+  const time = toTime(value);
+  return Number.isNaN(time) ? "--:--" : clockWithSeconds.format(time);
+}
+
 /** @param {LatLngTuple} from @param {number} radiusKm @param {{ lat: number, lng: number }} point */
 export const withinKm = (from, radiusKm, point) => distanceKm(from, [point.lat, point.lng]) <= radiusKm;
 

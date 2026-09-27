@@ -1,5 +1,6 @@
 // Raster OpenStreetMap base layer with an optional MapLibre vector style on top.
 import { MAPLIBRE_ASSETS, OSM_ATTRIBUTION, OSM_TILE_URL, VECTOR_ATTRIBUTION, VECTOR_STYLE_URL } from "../config.js";
+import { loadScript, loadStylesheet } from "../load.js";
 
 /** @type {boolean | null} */
 let webglSupport = null;
@@ -11,24 +12,6 @@ function supportsWebGL() {
     gl?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch (_) { webglSupport = false; }
   return webglSupport;
-}
-
-/** @param {{ src: string, integrity: string }} asset @returns {Promise<void>} */
-function loadScript({ src, integrity }) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    Object.assign(script, { src, integrity, crossOrigin: "anonymous", async: false });
-    script.onload = () => resolve();
-    script.onerror = () => { script.remove(); reject(new Error(`โหลด ${src} ไม่ได้`)); };
-    document.head.append(script);
-  });
-}
-
-/** @param {{ href: string, integrity: string }} asset */
-function loadStylesheet({ href, integrity }) {
-  if (document.querySelector(`link[href="${href}"]`)) return;
-  const link = Object.assign(document.createElement("link"), { rel: "stylesheet", href, integrity, crossOrigin: "anonymous" });
-  document.head.append(link);
 }
 
 const mapLibreReady = () => Boolean(window.maplibregl) && typeof L.maplibreGL === "function";
