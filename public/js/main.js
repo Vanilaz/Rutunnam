@@ -103,6 +103,7 @@ const state = {
   /** @type {string | null} */
   trafficCameraError: null,
   trafficCameraLimit: TRAFFIC_CAMERA_PAGE_SIZE,
+  cameraProvince: "",
   /** @type {{ items: import("./types.js").WaterGate[] | null, error: string | null, unsupported: boolean }} */
   gates: { items: null, error: null, unsupported: false },
   /** @type {{ items: import("./types.js").Dam[] | null, error: string | null, unsupported: boolean }} */
@@ -135,7 +136,7 @@ const map = createMap("map", center());
 if (!map) byId("map-fallback").hidden = false;
 const basemap = map && createBasemap(map, { onFallback: () => { ui.mapStyle.value = "classic"; } });
 const stationsLayer = map && createStationsLayer(map);
-const camerasLayer = map && createCamerasLayer(map, CAMERA_SOURCES);
+const camerasLayer = map && createCamerasLayer(map, CAMERA_SOURCES, { onOpen: (camera) => viewer.open(waterViewerCamera(camera)) });
 const locationLayer = map && createLocationLayer(map);
 const roadFloodLayer = map && createRoadFloodLayer(map);
 const waterGatesLayer = map && createWaterGatesLayer(map);
@@ -187,14 +188,20 @@ function cameraView() {
   const from = center();
   /** @param {{ lat: number, lng: number }} point */
   const km = (point) => distanceKm(from, [point.lat, point.lng]);
+  const provinces = [...new Set((state.trafficCameras ?? []).map((camera) => camera.name.match(/^\((?:จ\.)?([^)]*)\)/)?.[1] || "").filter((name) => name.length > 0))].sort((a, b) => a.localeCompare(b, "th"));
   const traffic = state.trafficCameras
-    ? state.trafficCameras.map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance)
+    ? state.trafficCameras.filter((camera) => !state.cameraProvince || camera.name.startsWith(`(จ.${state.cameraProvince})`) || camera.name.startsWith(`(${state.cameraProvince})`))
+      .map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance)
     : null;
   return {
     water: WATER_CAMERAS.map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance),
     directories: CAMERA_DIRECTORIES,
     traffic: traffic ? traffic.slice(0, state.trafficCameraLimit) : null,
     trafficTotal: state.trafficCameras?.length ?? 0,
+    provinceTotal: provinces.length,
+    provinces,
+    selectedProvince: state.cameraProvince,
+    filteredTotal: traffic?.length ?? 0,
     trafficError: state.trafficCameraError,
     hasMore: Boolean(traffic && traffic.length > state.trafficCameraLimit)
   };
@@ -210,7 +217,7 @@ const trafficViewerCamera = (camera) => ({
 /** @param {Readonly<import("./types.js").Camera>} camera @returns {ViewerCamera} */
 const waterViewerCamera = (camera) => ({
   id: `water:${camera.id}`, name: camera.name, meta: `${camera.area} · ${camera.source || "สำนักการระบายน้ำ กทม."}`,
-  lat: camera.lat, lng: camera.lng, image: camera.image ?? null, hls: null, refreshMs: camera.refreshMs || DEFAULT_CAMERA_REFRESH_MS,
+  lat: camera.lat, lng: camera.lng, image: camera.image ?? null, hls: camera.hls ?? null, refreshMs: camera.refreshMs || DEFAULT_CAMERA_REFRESH_MS,
   sourceUrl: camera.url, sourceLabel: camera.source || "สำนักการระบายน้ำ กทม."
 });
 
@@ -339,6 +346,13 @@ const listPanel = createListPanel(byId("tab-content"), {
     else if (action === "toggle-risk-only") setToggle(ui.toggleRiskOnly, !ui.toggleRiskOnly.checked);
     else if (action === "more-traffic-cameras") { state.trafficCameraLimit += TRAFFIC_CAMERA_PAGE_SIZE; renderList(); }
   }
+});
+ui.tabContent.addEventListener("change", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement) || target.id !== "camera-province") return;
+  state.cameraProvince = target.value;
+  state.trafficCameraLimit = TRAFFIC_CAMERA_PAGE_SIZE;
+  renderList();
 });
 
 function renderList() {
@@ -660,6 +674,11 @@ document.querySelectorAll("[data-quick]").forEach((button) => button.addEventLis
   const choice = button instanceof HTMLElement ? button.dataset.quick : undefined;
   if (isTab(choice)) showSection(choice);
 }));
+byId("nont-camera-shortcut").addEventListener("click", () => {
+  state.cameraProvince = "นนทบุรี";
+  state.trafficCameraLimit = TRAFFIC_CAMERA_PAGE_SIZE;
+  showSection("camera");
+});
 
 document.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button));

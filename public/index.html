@@ -42,6 +42,7 @@
   <link rel="modulepreload" href="/js/ui/status.js">
   <link rel="modulepreload" href="/js/utils.js">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/redesign.css">
   <title>รู้ทันน้ำ — แผนที่สถานการณ์น้ำ</title>
 </head>
 <body>
@@ -61,7 +62,7 @@
 
     <main id="content" class="main">
       <section class="intro" aria-labelledby="page-title">
-        <div><div class="eyebrow"><span></span> ศูนย์ติดตามสถานการณ์น้ำ</div><h1 id="page-title">น้ำใกล้บ้านคุณ <em>เป็นอย่างไร?</em></h1><p>ดูจุดน้ำล้นตลิ่ง พื้นที่น้ำท่วม ถนนน้ำท่วม และการจราจรในแผนที่เดียว ข้อมูลทุกจุดมีเวลาและที่มา</p></div>
+        <div><div class="eyebrow"><span></span> WATER WATCH · THAILAND</div><h1 id="page-title">เห็นน้ำก่อน <em>ตัดสินใจเดินทาง</em></h1><p>ระดับน้ำ จุดเสี่ยง กล้องภาพสด และสภาพถนนจากหลายหน่วยงานในแผนที่เดียว</p></div>
         <div class="intro-meta"><div class="clock-label">เวลาประเทศไทย</div><div id="clock" class="clock">--:--</div><div id="today" class="date">กำลังโหลด...</div></div>
       </section>
 
@@ -96,6 +97,7 @@
           </div>
           <div class="map-top"><div class="map-badge"><span class="pulse"></span><span id="map-status">กำลังโหลดสถานีวัดน้ำ</span></div><button id="recenter" class="map-tool" type="button" aria-label="กลับไปที่รังสิต" title="กลับไปที่รังสิต"><svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M2 12h4m12 0h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg></button></div>
           <button id="map-locate" type="button" class="map-locate" aria-label="ไปที่ตำแหน่งฉัน">◎ <span>ตำแหน่งฉัน</span></button>
+          <button id="nont-camera-shortcut" type="button" class="nont-shortcut"><span class="shortcut-live"></span><span><strong>กล้องนนทบุรี</strong><small>ท่าน้ำนนท์ · CCTV ถนน</small></span><span class="shortcut-arrow" aria-hidden="true">↗</span></button>
           <div class="map-legend" aria-label="คำอธิบายสัญลักษณ์"><span><i class="legend-dot overflow"></i> ล้นตลิ่ง</span><span><i class="legend-dot high"></i> ใกล้ตลิ่ง</span><span><i class="legend-dot teal"></i> ปกติ</span><span><i class="legend-dot low"></i> น้ำน้อย</span><span><i class="legend-dot gray"></i> ไม่มีเกณฑ์/ข้อมูลเก่า</span><span><i class="legend-dot road"></i> ถนนน้ำท่วม</span><span><i class="legend-dot gate"></i> ประตูน้ำ</span><span><i class="legend-dot dam"></i> เขื่อน (% ความจุ)</span><span><i class="legend-dot camera"></i> กล้อง</span><span><i class="legend-dot navy"></i> บ้าน</span><span><i class="legend-dot purple"></i> ฉัน</span></div>
           <div id="map-fallback" class="map-fallback" hidden>แผนที่โหลดไม่ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต <button id="map-retry" type="button">ลองอีกครั้ง</button></div>
         </section>
@@ -108,7 +110,7 @@
         </aside>
       </div>
       <nav class="mobile-nav" aria-label="เมนูหลัก"><button type="button" data-nav="map" class="active"><span class="nav-icon" aria-hidden="true">⌖</span><span>แผนที่</span></button><button type="button" data-nav="risk"><span class="nav-icon" aria-hidden="true">⚠<i class="nav-badge" id="nav-risk-badge" hidden></i></span><span>เตือนภัย</span></button><button type="button" data-nav="flood"><span class="nav-icon" aria-hidden="true">△</span><span>น้ำท่วม</span></button><button type="button" data-nav="gates"><span class="nav-icon" aria-hidden="true">▥</span><span>ประตูน้ำ</span></button><button type="button" data-nav="camera"><span class="nav-icon" aria-hidden="true">▣</span><span>กล้อง</span></button><button type="button" data-nav="road"><span class="nav-icon" aria-hidden="true">⇢</span><span>จราจร</span></button></nav>
-      <footer class="footer"><div><strong>รู้ทันน้ำ</strong><span>ต้นแบบแผนที่ข้อมูลน้ำสำหรับประชาชน</span></div><div>ข้อมูล: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener noreferrer">ThaiWater</a> · <a href="https://dds.bangkok.go.th/cctv.php" target="_blank" rel="noopener noreferrer">สำนักการระบายน้ำ กทม.</a> · <a href="https://rangsitcity.go.th/cctvrangsitcity/" target="_blank" rel="noopener noreferrer">เทศบาลนครรังสิต</a> · <a href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">GISTDA</a> · <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTom</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div></footer>
+      <footer class="footer"><div><strong>รู้ทันน้ำ</strong><span>แผนที่ข้อมูลน้ำสำหรับประชาชน</span></div><div>ข้อมูล: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener noreferrer">ThaiWater</a> · <a href="https://cctv-nont.firsttech.co.th/" target="_blank" rel="noopener noreferrer">เทศบาลนครนนทบุรี</a> · <a href="https://dds.bangkok.go.th/cctv.php" target="_blank" rel="noopener noreferrer">สำนักการระบายน้ำ กทม.</a> · <a href="https://rangsitcity.go.th/cctvrangsitcity/" target="_blank" rel="noopener noreferrer">เทศบาลนครรังสิต</a> · <a href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">GISTDA</a> · <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTom</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div></footer>
     </main>
   </div>
   <dialog id="camera-viewer" class="camera-viewer" aria-labelledby="viewer-title">

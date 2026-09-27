@@ -76,8 +76,19 @@ test("camera tab renders a thumbnail card per camera and escapes names", async (
   assert.ok(html.includes('data-thumb="https://cam.example/a.jpg"'));
   assert.ok(html.includes("150 กล้องทั่วประเทศ"));
   assert.ok(html.includes('data-action="more-traffic-cameras"'));
+  assert.ok(html.includes('id="camera-province"'));
   assert.ok(!html.includes("<b>แยก</b>"));
   assert.match(cameraTabHtml({ water, directories, traffic: null, trafficTotal: 0, trafficError: "ล่ม", hasMore: false }), /ล่ม/);
+});
+
+test("Nonthaburi water camera has a direct live video source and appears on the map", async () => {
+  const { CAMERA_SOURCES } = await load("config.js");
+  const { cameraPopupHtml } = await load("templates.js");
+  const nont = CAMERA_SOURCES.find((camera) => camera.id === "nont-pier");
+  assert.ok(nont);
+  assert.match(nont.hls, /^https:\/\/stream\.firsttech\.co\.th\/live\//);
+  assert.match(cameraPopupHtml(nont), /water-live-video/);
+  assert.match(cameraPopupHtml(nont), /ขยายภาพสด/);
 });
 
 test("alert banner names the nearest risky station", async () => {

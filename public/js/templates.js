@@ -55,9 +55,11 @@ export function cameraPopupHtml(camera) {
     : `ภาพจากต้นทางอัปเดตทุก ${DEFAULT_CAMERA_REFRESH_MS / 1000} วินาทีเมื่อเปิดดู`;
   const preview = camera.image
     ? `<div class="camera-preview"><img alt="ภาพกล้อง ${esc(camera.name)}"><span class="camera-error" hidden>ภาพจากต้นทางไม่พร้อมใช้งาน</span></div><small>${refreshNote}</small>`
+    : camera.hls
+      ? `<div class="camera-preview"><video class="water-live-video" controls muted autoplay playsinline aria-label="ภาพสด ${esc(camera.name)}"></video><span class="camera-error" hidden>วิดีโอไม่พร้อมใช้งาน เปิดเว็บไซต์ต้นทางเพื่อตรวจสอบ</span></div><small>ภาพสดจากเทศบาลนครนนทบุรี · เริ่มเล่นเมื่อเปิดหมุด</small>`
     : `<p>${esc(camera.note)}<br><small>หมุดนี้แทนพื้นที่ของศูนย์กล้อง ไม่ใช่พิกัดกล้องรายตัว</small></p>`;
   const kind = camera.directory ? "ศูนย์กล้อง" : esc(camera.source || "กล้องดูระดับน้ำ กทม.");
-  return `<div class="camera-popup"><strong>${esc(camera.name)}</strong><small>${esc(camera.area)} · ${kind}</small>${preview}${external(camera.url, "เปิดเว็บไซต์ต้นทาง ↗", "")}</div>`;
+  return `<div class="camera-popup"><strong>${esc(camera.name)}</strong><small>${esc(camera.area)} · ${kind}</small>${preview}${camera.hls ? '<button class="link-button camera-fullscreen" type="button">ขยายภาพสด</button>' : ""}${external(camera.url, "เปิดเว็บไซต์ต้นทาง ↗", "")}</div>`;
 }
 
 const ROAD_LINKS = infoCard("ทางหลวง · จุดที่สัญจรผ่านไม่ได้", "กรมทางหลวงรายงานสายทางที่ได้รับผลกระทบจากน้ำท่วม พร้อมจุดที่ผ่านไม่ได้", external("https://hdms.doh.go.th/", "ตรวจแผนที่ภัยพิบัติทางหลวง ↗"))
@@ -135,10 +137,10 @@ function cameraCardHtml({ key, name, caption, image, video }) {
 /**
  * @param {{ water: { camera: Readonly<Camera>, distance: number }[], directories: ReadonlyArray<Readonly<Camera>>,
  *   traffic: { camera: import("./types.js").TrafficCamera, distance: number }[] | null, trafficTotal: number,
- *   trafficError: string | null, hasMore: boolean }} view
+ *   trafficError: string | null, hasMore: boolean, provinces?: string[], selectedProvince?: string, provinceTotal?: number, filteredTotal?: number }} view
  */
-export function cameraTabHtml({ water, directories, traffic, trafficTotal, trafficError, hasMore }) {
-  const waterCards = water.map(({ camera, distance }) => cameraCardHtml({ key: `water:${camera.id}`, name: camera.name, caption: `${camera.source || "กทม."} · ${distance.toFixed(1)} km`, image: camera.image ?? null, video: false })).join("");
+export function cameraTabHtml({ water, directories, traffic, trafficTotal, trafficError, hasMore, provinces = [], selectedProvince = "", provinceTotal = 0, filteredTotal = trafficTotal }) {
+  const waterCards = water.map(({ camera, distance }) => cameraCardHtml({ key: `water:${camera.id}`, name: camera.name, caption: `${camera.source || "กทม."} · ${distance.toFixed(1)} km`, image: camera.image ?? null, video: Boolean(camera.hls) })).join("");
   let trafficHtml;
   if (trafficError) trafficHtml = `<div class="cache-warning">${esc(trafficError)}</div>`;
   else if (traffic === null) trafficHtml = `<p class="subtle">กำลังโหลดรายชื่อกล้องจราจร...</p>`;
@@ -146,10 +148,13 @@ export function cameraTabHtml({ water, directories, traffic, trafficTotal, traff
   else trafficHtml = `<div class="cam-grid">${traffic.map(({ camera, distance }) => cameraCardHtml({ key: `traffic:${camera.id}`, name: camera.name, caption: `${camera.org || "กล้องจราจร"} · ${distance.toFixed(1)} km`, image: camera.image, video: Boolean(camera.hls) })).join("")}</div>`
     + (hasMore ? `<button type="button" class="link-button more-button" data-action="more-traffic-cameras">แสดงกล้องเพิ่ม</button>` : "");
   const links = directories.map((camera) => infoCard(esc(camera.name), `${esc(camera.area)} · ${esc(camera.note)}`, external(camera.url, "เปิดศูนย์กล้อง ↗"))).join("");
-  return `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${water.length} กล้อง</span></div><div class="cam-grid">${waterCards}</div>`
-    + `<div class="content-heading"><strong>กล้องจราจรใกล้คุณ</strong><span>${trafficTotal ? `${trafficTotal} กล้องทั่วประเทศ` : ""}</span></div>${trafficHtml}`
-    + `<p class="subtle">กล้องจราจรจากฟีด iTIC / Longdo Traffic ครอบคลุมหลายจังหวัด บางกล้องอาจหยุดส่งภาพชั่วคราว ภาพเป็นชุด JPEG หรือวิดีโอสดจากหน่วยงานต้นทาง</p>`
-    + links;
+  const options = provinces.map((province) => `<option value="${esc(province)}"${selectedProvince === province ? " selected" : ""}>${esc(province)}</option>`).join("");
+  return `<div class="camera-intro"><span class="section-kicker">CCTV EXPLORER</span><h3>มองเห็นสถานการณ์จริง</h3><p>เลือกกล้องดูน้ำหรือกล้องถนน เปิดภาพและดูตำแหน่งได้ทันที</p><div class="camera-stat"><strong>${water.length}</strong><span>กล้องดูน้ำ</span><strong>${trafficTotal}</strong><span>กล้องถนน · ${provinceTotal || "หลาย"} จังหวัด</span></div></div>`
+    + `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${water.length} กล้อง</span></div><div class="cam-grid">${waterCards}</div>`
+    + `<div class="content-heading"><strong>กล้องบนถนน</strong><span>${selectedProvince ? `${filteredTotal} กล้อง` : `${trafficTotal} กล้องทั่วประเทศ`}</span></div>`
+    + `<label class="camera-filter-label" for="camera-province">เลือกจังหวัด</label><select id="camera-province" class="camera-province"><option value="">ทุกจังหวัดที่มีข้อมูล</option>${options}</select><p class="camera-coverage">${selectedProvince ? `กำลังดูกล้องใน${esc(selectedProvince)}` : `ฟีดเผยแพร่ภาพจาก ${provinceTotal || "หลาย"} จังหวัด`} · รายการกล้องเปลี่ยนตามต้นทาง</p>${trafficHtml}`
+    + `<p class="subtle">กล้องถนนจาก iTIC / Longdo ภาพบางตัวอาจไม่พร้อม ข้อมูลที่ไม่มีสัญญาณจะแสดงสถานะชัดเจน</p>`
+    + `<div class="content-heading"><strong>ศูนย์กล้องท้องถิ่นและหน่วยงานน้ำ</strong></div>${links}`;
 }
 
 /**

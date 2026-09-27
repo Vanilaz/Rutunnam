@@ -1,5 +1,6 @@
 // CCTV pins. A single refresh timer runs only while a camera popup is open.
-import { DEFAULT_CAMERA_REFRESH_MS } from "../config.js";
+import { DEFAULT_CAMERA_REFRESH_MS, HLS_JS_ASSET } from "../config.js";
+import { loadScript } from "../load.js";
 import { cameraPopupHtml } from "../templates.js";
 
 /** @typedef {Readonly<import("../types.js").Camera>} Camera */
@@ -16,16 +17,46 @@ const cacheBusted = (url) => `${url}${url.includes("?") ? "&" : "?"}t=${Date.now
 /**
  * @param {L.Map} map
  * @param {ReadonlyArray<Camera>} cameras
+ * @param {{ onOpen?: (camera: Camera) => void }} [handlers]
  */
-export function createCamerasLayer(map, cameras) {
+export function createCamerasLayer(map, cameras, { onOpen } = {}) {
   const group = L.layerGroup().addTo(map);
   /** @type {Map<string, L.Marker>} */
   const markers = new Map();
   const icons = { image: cameraIcon(false), directory: cameraIcon(true) };
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
+  /** @type {{ destroy: () => void } | null} */
+  let hlsPlayer = null;
+  let videoSession = 0;
 
-  const stopPreview = () => { if (timer) clearInterval(timer); timer = null; };
+  const stopPreview = () => {
+    videoSession++;
+    if (timer) clearInterval(timer);
+    timer = null;
+    hlsPlayer?.destroy(); hlsPlayer = null;
+  };
+
+  /** @param {HTMLElement | undefined} popupElement @param {Camera} camera */
+  async function startVideo(popupElement, camera) {
+    stopPreview();
+    const current = videoSession;
+    const video = popupElement?.querySelector("video");
+    const error = popupElement?.querySelector(".camera-error");
+    if (!(video instanceof HTMLVideoElement) || !camera.hls) return;
+    const failed = () => { if (videoSession === current && error instanceof HTMLElement) error.hidden = false; };
+    video.onerror = failed;
+    if (video.canPlayType("application/vnd.apple.mpegurl")) { video.src = camera.hls; video.play().catch(failed); return; }
+    try { await loadScript(HLS_JS_ASSET); } catch (_) { failed(); return; }
+    if (videoSession !== current) return;
+    const Hls = /** @type {any} */ (window).Hls;
+    if (!Hls?.isSupported()) { failed(); return; }
+    const player = new Hls({ maxBufferLength: 10 });
+    hlsPlayer = player;
+    player.on(Hls.Events.ERROR, (/** @type {unknown} */ _event, /** @type {{ fatal?: boolean }} */ data) => { if (data.fatal) failed(); });
+    player.loadSource(camera.hls);
+    player.attachMedia(video);
+  }
 
   /** @param {HTMLElement | undefined} popupElement @param {string} imageUrl @param {number} refreshMs */
   function startPreview(popupElement, imageUrl, refreshMs) {
@@ -46,6 +77,10 @@ export function createCamerasLayer(map, cameras) {
       .addTo(group);
     const { image } = camera;
     if (image) marker.on("popupopen", (event) => startPreview(event.popup.getElement(), image, camera.refreshMs || DEFAULT_CAMERA_REFRESH_MS));
+    if (camera.hls) marker.on("popupopen", (event) => {
+      startVideo(event.popup.getElement(), camera);
+      event.popup.getElement()?.querySelector(".camera-fullscreen")?.addEventListener("click", () => onOpen?.(camera));
+    });
     marker.on("popupclose", stopPreview);
     markers.set(camera.id, marker);
   }

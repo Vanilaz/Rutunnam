@@ -26,6 +26,7 @@
  * @property {number} lng
  * @property {string} url
  * @property {string} [image]  Snapshot URL for cameras with a live preview.
+ * @property {string} [hls]  Live video playlist for cameras that publish HLS.
  * @property {number} [refreshMs]
  * @property {string} [source]
  * @property {string} [note]
