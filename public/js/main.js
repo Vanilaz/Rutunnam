@@ -1,10 +1,11 @@
 // Composition root: owns app state and wires modules to the DOM.
-import { CAMERA_SOURCES, DEFAULT_CAMERA_REFRESH_MS, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, THUMBNAIL_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
-import { fetchLayerConfig, fetchRoadFloods, fetchStations, fetchTrafficCameras, NO_OPTIONAL_LAYERS } from "./api.js";
+import { CAMERA_SOURCES, DAM_LIST_LIMIT, DAM_REFRESH_MS, DEFAULT_CAMERA_REFRESH_MS, GATE_LIST_LIMIT, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, THUMBNAIL_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
+import { fetchDams, fetchLayerConfig, fetchRoadFloods, fetchStations, fetchTrafficCameras, fetchWaterGates, NO_OPTIONAL_LAYERS } from "./api.js";
 import { isLayerWanted, loadCachedStations, loadHome, saveCachedStations, saveHome, saveLayerPref } from "./storage.js";
 import { age, distanceKm, fmtClock, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
 import { riskyStations } from "./risk.js";
-import { alertBannerHtml, cameraTabHtml, floodTabHtml, riskTabHtml, roadTabHtml, waterTabHtml } from "./templates.js";
+import { rankDams } from "./reservoir.js";
+import { alertBannerHtml, cameraTabHtml, floodTabHtml, gatesTabHtml, riskTabHtml, roadTabHtml, waterTabHtml } from "./templates.js";
 import { createMap, focusOnMap } from "./map/map.js";
 import { createBasemap } from "./map/basemap.js";
 import { createStationsLayer } from "./map/stations-layer.js";
@@ -14,6 +15,8 @@ import { createFloodLayer } from "./map/flood-layer.js";
 import { createTrafficLayer } from "./map/traffic-layer.js";
 import { createRoadFloodLayer } from "./map/road-flood-layer.js";
 import { createTrafficCamerasLayer } from "./map/traffic-cameras-layer.js";
+import { createWaterGatesLayer } from "./map/water-gates-layer.js";
+import { createDamsLayer } from "./map/dams-layer.js";
 import { createCameraViewer } from "./ui/camera-viewer.js";
 import { startClock } from "./ui/clock.js";
 import { byId, required } from "./ui/dom.js";
@@ -29,7 +32,7 @@ import { createListPanel } from "./ui/list-panel.js";
 /** @typedef {import("./types.js").ViewerCamera} ViewerCamera */
 
 /** @type {ReadonlyArray<Tab>} */
-const TABS = ["water", "risk", "flood", "camera", "road"];
+const TABS = ["water", "risk", "flood", "gates", "camera", "road"];
 /** @param {string | undefined} value @returns {value is Tab} */
 const isTab = (value) => TABS.includes(/** @type {Tab} */ (value));
 const WATER_CAMERAS = CAMERA_SOURCES.filter((camera) => !camera.directory);
@@ -62,6 +65,10 @@ const ui = {
   navRiskBadge: byId("nav-risk-badge"),
   layerSheet: byId("layer-sheet"),
   openLayers: byId("open-layers", HTMLButtonElement),
+  toggleGates: byId("toggle-gates", HTMLInputElement),
+  toggleDams: byId("toggle-dams", HTMLInputElement),
+  gateNote: byId("gate-note"),
+  damNote: byId("dam-note"),
   kpi: { overflow: byId("kpi-overflow"), high: byId("kpi-high"), roads: byId("kpi-roads"), cameras: byId("kpi-cameras") }
 };
 
@@ -95,7 +102,11 @@ const state = {
   trafficCameras: null,
   /** @type {string | null} */
   trafficCameraError: null,
-  trafficCameraLimit: TRAFFIC_CAMERA_PAGE_SIZE
+  trafficCameraLimit: TRAFFIC_CAMERA_PAGE_SIZE,
+  /** @type {{ items: import("./types.js").WaterGate[] | null, error: string | null, unsupported: boolean }} */
+  gates: { items: null, error: null, unsupported: false },
+  /** @type {{ items: import("./types.js").Dam[] | null, error: string | null, unsupported: boolean }} */
+  dams: { items: null, error: null, unsupported: false }
 };
 /** @returns {LatLngTuple} */
 const center = () => state.home ? [state.home.lat, state.home.lng] : state.you || RANGSIT;
@@ -127,6 +138,8 @@ const stationsLayer = map && createStationsLayer(map);
 const camerasLayer = map && createCamerasLayer(map, CAMERA_SOURCES);
 const locationLayer = map && createLocationLayer(map);
 const roadFloodLayer = map && createRoadFloodLayer(map);
+const waterGatesLayer = map && createWaterGatesLayer(map);
+const damsLayer = map && createDamsLayer(map);
 const trafficCamerasLayer = map && createTrafficCamerasLayer(map, { onOpen: (camera) => viewer.open(trafficViewerCamera(camera)) });
 /** @type {ReturnType<typeof createFloodLayer> | null} */
 let floodLayer = null;
@@ -236,12 +249,35 @@ function refreshThumbnails() {
   });
 }
 
+function gatesView() {
+  const from = center();
+  /** @param {{ lat: number, lng: number }} point */
+  const km = (point) => distanceKm(from, [point.lat, point.lng]);
+  const gates = state.gates.items?.map((gate) => ({ gate, distance: km(gate) })).sort((a, b) => a.distance - b.distance) ?? null;
+  const ranked = state.dams.items ? rankDams(state.dams.items) : null;
+  return {
+    gates: gates ? gates.slice(0, GATE_LIST_LIMIT) : null,
+    gateTotal: state.gates.items?.length ?? 0,
+    gateError: state.gates.error,
+    gateUnsupported: state.gates.unsupported,
+    dams: ranked ? ranked.slice(0, DAM_LIST_LIMIT).map(({ dam, status }) => ({ dam, status, distance: km(dam) })) : null,
+    damTotal: ranked?.length ?? 0,
+    damCounts: {
+      over: ranked?.filter(({ status }) => status === "over").length ?? 0,
+      high: ranked?.filter(({ status }) => status === "high").length ?? 0
+    },
+    damError: state.dams.error,
+    damUnsupported: state.dams.unsupported
+  };
+}
+
 /** @returns {string} */
 function tabHtml() {
   switch (state.tab) {
     case "risk": return riskTabHtml(riskView());
     case "flood": return floodTabHtml(floodView());
     case "camera": return cameraTabHtml(cameraView());
+    case "gates": return gatesTabHtml(gatesView());
     case "road": return roadTabHtml({ trafficAvailable: state.config.traffic.available, trafficOn: ui.toggleTraffic.checked, roadFloodCount: state.roadFloods?.length ?? null });
     default: return waterTabHtml({
       nearest: nearestStations(state.stations, center(), NEAREST_STATION_LIMIT),
@@ -270,6 +306,20 @@ const listPanel = createListPanel(byId("tab-content"), {
   onViewer(key) {
     const camera = viewerCameraFor(key);
     if (camera) viewer.open(camera);
+  },
+  onGate(id) {
+    const gate = state.gates.items?.find((item) => item.id === id);
+    if (!gate || !map) return;
+    setToggle(ui.toggleGates, true);
+    scrollToMap();
+    focusOnMap(map, [gate.lat, gate.lng], FOCUS_ZOOM, waterGatesLayer?.markerFor(gate.id));
+  },
+  onDam(id) {
+    const dam = state.dams.items?.find((item) => item.id === id);
+    if (!dam || !map) return;
+    setToggle(ui.toggleDams, true);
+    scrollToMap();
+    focusOnMap(map, [dam.lat, dam.lng], LOCATE_ZOOM, damsLayer?.markerFor(dam.id));
   },
   onRoad(id) {
     const report = state.roadFloods?.find((item) => item.id === id);
@@ -451,6 +501,31 @@ async function loadTrafficCameras() {
   }
 }
 
+/**
+ * Load one list feed into state, update its map layer and sidebar note.
+ * @template T
+ * @param {{ items: T[] | null, error: string | null, unsupported: boolean }} slot
+ * @param {() => Promise<{ items: T[], unsupported: boolean }>} fetcher
+ * @param {{ update: (items: T[]) => void } | null} layer
+ * @param {HTMLElement} note
+ * @param {string} unit e.g. "แห่ง"
+ */
+async function loadFeed(slot, fetcher, layer, note, unit) {
+  try {
+    const data = await fetcher();
+    Object.assign(slot, { items: data.items, error: null, unsupported: data.unsupported });
+    layer?.update(data.items);
+    note.textContent = data.unsupported ? "ThaiWater · รูปแบบข้อมูลยังไม่รองรับ" : `ThaiWater · ${formatCount(data.items.length)} ${unit}`;
+  } catch (error) {
+    slot.error = error instanceof Error && error.message ? error.message : "โหลดข้อมูลไม่ได้";
+    note.textContent = "ThaiWater · โหลดไม่ได้";
+  } finally {
+    renderList();
+  }
+}
+const loadWaterGates = () => loadFeed(state.gates, fetchWaterGates, waterGatesLayer, ui.gateNote, "แห่ง");
+const loadDams = () => loadFeed(state.dams, fetchDams, damsLayer, ui.damNote, "แห่ง");
+
 async function loadLayerConfig() {
   state.config = await fetchLayerConfig();
   const { flood, traffic } = state.config;
@@ -490,6 +565,8 @@ ui.toggleRoadFlood.addEventListener("change", () => {
 });
 ui.toggleCamera.addEventListener("change", () => camerasLayer?.setVisible(ui.toggleCamera.checked));
 ui.toggleTrafficCameras.addEventListener("change", () => trafficCamerasLayer?.setVisible(ui.toggleTrafficCameras.checked));
+ui.toggleGates.addEventListener("change", () => waterGatesLayer?.setVisible(ui.toggleGates.checked));
+ui.toggleDams.addEventListener("change", () => damsLayer?.setVisible(ui.toggleDams.checked));
 ui.openLayers.addEventListener("click", () => setLayerSheet(!ui.layerSheet.classList.contains("is-open")));
 byId("close-layers").addEventListener("click", closeLayerSheet);
 ui.alertBanner.addEventListener("click", () => {
@@ -545,6 +622,7 @@ function showSection(tab) {
   if (tab === "risk") setToggle(ui.toggleWater, true);
   if (tab === "flood") { setToggle(ui.toggleFlood, true); setToggle(ui.toggleRoadFlood, true); }
   if (tab === "road") setToggle(ui.toggleTraffic, true);
+  if (tab === "gates") { setToggle(ui.toggleGates, true); setToggle(ui.toggleDams, true); }
   openSection(tab);
 }
 
@@ -585,14 +663,19 @@ if (state.stations.length) {
 }
 roadFloodLayer?.setVisible(ui.toggleRoadFlood.checked);
 trafficCamerasLayer?.setVisible(ui.toggleTrafficCameras.checked);
+waterGatesLayer?.setVisible(ui.toggleGates.checked);
+damsLayer?.setVisible(ui.toggleDams.checked);
 setView("map");
 renderList();
 loadTrafficCameras();
+loadWaterGates();
+loadDams();
 loadStations();
 loadRoadFloods();
 loadLayerConfig();
 basemap?.setStyle(ui.mapStyle.value);
-setInterval(() => { if (!document.hidden) { loadStations(); loadRoadFloods(); } }, STATION_REFRESH_MS);
+setInterval(() => { if (!document.hidden) { loadStations(); loadRoadFloods(); loadWaterGates(); } }, STATION_REFRESH_MS);
+setInterval(() => { if (!document.hidden) loadDams(); }, DAM_REFRESH_MS);
 setInterval(() => { if (!document.hidden && state.tab === "camera") refreshThumbnails(); }, THUMBNAIL_REFRESH_MS);
 // Leaving the phone layout (rotate/resize) must not leave the map hidden.
 mobileQuery.addEventListener("change", () => { if (!mobileQuery.matches) setView("map"); });

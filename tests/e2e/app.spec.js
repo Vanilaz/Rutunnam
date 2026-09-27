@@ -269,3 +269,43 @@ test.describe("flood and traffic layers", () => {
     await expect(page.locator("#tab-content")).toContainText("ไม่ได้แปลว่าไม่มีน้ำท่วม");
   });
 });
+
+test.describe("water gates and dams", () => {
+  test("gates and dams appear on the map and in their page", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#gate-note")).toHaveText("ThaiWater · 2 แห่ง");
+    await expect(page.locator("#dam-note")).toHaveText("ThaiWater · 2 แห่ง");
+    await expect(page.locator(".gate-pin")).toHaveCount(2);
+    await expect(page.locator(".dam-pin")).toHaveCount(2);
+    await expect(page.locator(".dam-pin.is-large")).toHaveText(/104%/);
+    await openTab(page, "gates");
+    const gate = page.locator("[data-gate]").first();
+    await expect(gate).toContainText("ปตร.คลองรังสิต");
+    await expect(gate).toContainText("+0.93");
+    const dams = page.locator("[data-dam]");
+    await expect(dams.first()).toContainText("เขื่อนทดสอบใหญ่");
+    await expect(dams.first()).toContainText("เกินความจุ");
+    await expect(dams.nth(1)).toContainText("น้ำน้อย");
+    await gate.click();
+    await expect(page.locator(".leaflet-popup-content")).toContainText("น้ำด้านรับ 3.72 ม.");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("a dam card opens its popup with daily inflow and release", async ({ page }) => {
+    await page.goto("/");
+    await openTab(page, "gates");
+    await page.locator('[data-dam="d-large"]').click();
+    // The reservoir is ~140 km away, so the fly animation takes a few seconds.
+    await expect(page.locator(".leaflet-popup-content")).toContainText("ระบาย 35.5 ล้าน ลบ.ม./วัน", { timeout: 10000 });
+  });
+
+  test("unreadable or failed feeds are reported, not shown as empty", async ({ page, net }) => {
+    net.waterGates(json({ gates: [], status: "unsupported-format" }));
+    net.dams(json({ dams: [], status: "error", error: "ดึงข้อมูลเขื่อนและอ่างเก็บน้ำไม่ได้ในขณะนี้" }, 502));
+    await page.goto("/");
+    await openTab(page, "gates");
+    await expect(page.locator("#tab-content")).toContainText("ไม่ได้แปลว่าไม่มีข้อมูล");
+    await expect(page.locator("#tab-content")).toContainText("ดึงข้อมูลเขื่อนและอ่างเก็บน้ำไม่ได้ในขณะนี้");
+    await expect(page.locator("#gate-note")).toHaveText("ThaiWater · รูปแบบข้อมูลยังไม่รองรับ");
+  });
+});

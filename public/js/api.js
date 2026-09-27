@@ -1,5 +1,5 @@
-import { CONFIG_API_URL, FETCH_TIMEOUT_MS, ROAD_FLOOD_API_URL, TRAFFIC_CAMERAS_API_URL, WATER_API_URL } from "./config.js";
-import { validRoadFloods, validStations, validTrafficCameras } from "./utils.js";
+import { CONFIG_API_URL, DAMS_API_URL, FETCH_TIMEOUT_MS, ROAD_FLOOD_API_URL, TRAFFIC_CAMERAS_API_URL, WATER_API_URL, WATER_GATES_API_URL } from "./config.js";
+import { validDams, validRoadFloods, validStations, validTrafficCameras, validWaterGates } from "./utils.js";
 
 /** @typedef {{ stations: import("./types.js").Station[], fetchedAt: string, warning: string | null }} StationFeed */
 /** @typedef {import("./types.js").LayerConfig} LayerConfig */
@@ -73,3 +73,18 @@ export async function fetchTrafficCameras() {
   if (!ok) throw new Error(data?.error || `รายชื่อกล้องจราจรไม่พร้อมใช้งาน (HTTP ${status})`);
   return validTrafficCameras(data?.cameras);
 }
+
+/**
+ * A list feed with the common { status, fetchedAt } envelope.
+ * @template T
+ * @param {string} url @param {string} key @param {(list: unknown) => T[]} validate @param {string} label
+ * @returns {Promise<{ items: T[], fetchedAt: string, unsupported: boolean, stale: boolean }>}
+ */
+async function fetchFeed(url, key, validate, label) {
+  const { ok, status, data } = await getJson(url);
+  if (!ok) throw new Error(data?.error || `${label}ไม่พร้อมใช้งาน (HTTP ${status})`);
+  return { items: validate(data?.[key]), fetchedAt: data?.fetchedAt || new Date().toISOString(), unsupported: data?.status === "unsupported-format", stale: data?.stale === true };
+}
+
+export const fetchWaterGates = () => fetchFeed(WATER_GATES_API_URL, "gates", validWaterGates, "ข้อมูลประตูระบายน้ำ");
+export const fetchDams = () => fetchFeed(DAMS_API_URL, "dams", validDams, "ข้อมูลเขื่อน");

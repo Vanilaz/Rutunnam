@@ -61,6 +61,42 @@
  * @typedef {{ id: string, name: string, meta: string, lat: number, lng: number, image: string | null, hls: string | null, refreshMs: number, sourceUrl: string, sourceLabel: string }} ViewerCamera
  */
 
+/**
+ * Water gate / pumping station from /api/water-gates. Levels are m MSL.
+ * @typedef {Object} WaterGate
+ * @property {string} id
+ * @property {string} name
+ * @property {string} [province]
+ * @property {string} [agency]
+ * @property {number} lat
+ * @property {number} lng
+ * @property {number | null} upstream  Intake side (ด้านรับ).
+ * @property {number | null} downstream  Release side (ด้านระบาย).
+ * @property {number | null} pumpsOn
+ * @property {number | null} gatesOpen
+ * @property {string | null} measuredAt
+ */
+
+/**
+ * Reservoir from /api/dams. Volumes are million m³; inflow/release are per day.
+ * @typedef {Object} Dam
+ * @property {string} id
+ * @property {string} name
+ * @property {"large" | "medium"} size
+ * @property {string} [province]
+ * @property {string} [agency]
+ * @property {number} lat
+ * @property {number} lng
+ * @property {number | null} storage
+ * @property {number | null} normalStorage
+ * @property {number | null} percent
+ * @property {number | null} inflow
+ * @property {number | null} released
+ * @property {string | null} date  YYYY-MM-DD
+ */
+
+/** @typedef {"over" | "high" | "normal" | "low" | "critical" | "unknown" | "stale"} DamStatus */
+
 /** @typedef {"overflow" | "high" | "normal" | "belowBank" | "low" | "unknown" | "stale"} RiskStatus */
 /** @typedef {{ status: RiskStatus, percent: number | null, margin: number | null }} StationRisk  margin = level - bank (m); positive means over the bank. */
 
@@ -75,6 +111,6 @@
 /** @typedef {[number, number]} LatLngTuple */
 /** @typedef {{ lat: number, lng: number }} Home */
 /** @typedef {{ station: Station, distance: number }} StationDistance */
-/** @typedef {"water" | "risk" | "flood" | "camera" | "road"} Tab */
+/** @typedef {"water" | "risk" | "flood" | "gates" | "camera" | "road"} Tab */
 
 export {};
