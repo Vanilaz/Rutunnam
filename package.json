@@ -5,8 +5,19 @@
   "description": "Thailand flood watch MVP for Vercel Hobby",
   "scripts": {
     "dev": "node dev-server.js",
+    "typecheck": "tsc -p .",
     "test": "node --test tests/*.test.js",
-    "build": "node scripts/check-build.js"
+    "test:e2e": "playwright test",
+    "build": "tsc -p . && node scripts/check-build.js",
+    "check": "npm run build && npm test"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/leaflet": "1.9.22",
+    "@types/node": "22.20.4",
+    "typescript": "5.9.3"
+  }
 }

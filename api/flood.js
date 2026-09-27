@@ -1,6 +1,14 @@
+// @ts-check
+/**
+ * No flood polygons are fabricated. A verified GeoJSON feed can be configured later.
+ * @param {{ method?: string }} req
+ * @param {{ setHeader(name: string, value: string): void, status(code: number): any }} res
+ */
 module.exports = async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  // No flood polygons are fabricated. A verified GeoJSON feed can be configured later.
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    res.setHeader("Allow", "GET, HEAD");
+    return res.status(405).json({ error: "Method not allowed" });
+  }
   res.setHeader("Cache-Control", "public, max-age=0, s-maxage=300");
   return res.status(200).json({
     features: [],
