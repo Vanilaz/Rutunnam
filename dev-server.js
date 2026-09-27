@@ -1,3 +1,4 @@
+// @ts-check
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -6,6 +7,7 @@ process.env.NODE_ENV ??= "development";
 const root = path.join(__dirname, "public");
 const port = Number(process.env.PORT) || 3000;
 const apiRoutes = new Set(["/api/water", "/api/flood"]);
+/** @type {Record<string, string>} */
 const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -16,19 +18,29 @@ const types = {
   ".txt": "text/plain; charset=utf-8"
 };
 
+/** @param {http.ServerResponse} res @param {number} code @param {string} message */
 function send(res, code, message) {
   if (res.headersSent) return res.end();
   res.writeHead(code, { "Content-Type": "text/plain; charset=utf-8" });
   res.end(message);
 }
 
+/**
+ * Mimic the small subset of Vercel's response helpers the handlers use.
+ * @param {string} pathname @param {http.IncomingMessage} req @param {http.ServerResponse} res
+ */
 async function handleApi(pathname, req, res) {
   const handler = require(`.${pathname}.js`);
-  res.status = function (code) { res.statusCode = code; return res; };
-  res.json = function (body) { res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify(body)); return res; };
-  await handler(req, res);
+  const vercelRes = Object.assign(res, {
+    /** @param {number} code */
+    status(code) { res.statusCode = code; return vercelRes; },
+    /** @param {unknown} body */
+    json(body) { res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify(body)); return vercelRes; }
+  });
+  await handler(req, vercelRes);
 }
 
+/** @param {string} pathname @param {http.ServerResponse} res */
 function serveStatic(pathname, res) {
   let relative;
   try { relative = decodeURIComponent(pathname === "/" ? "/index.html" : pathname); }
@@ -44,7 +56,7 @@ function serveStatic(pathname, res) {
 
 http.createServer(async (req, res) => {
   try {
-    const { pathname } = new URL(req.url, "http://localhost");
+    const { pathname } = new URL(req.url ?? "/", "http://localhost");
     if (apiRoutes.has(pathname)) return await handleApi(pathname, req, res);
     return serveStatic(pathname, res);
   } catch (error) {

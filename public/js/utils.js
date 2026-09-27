@@ -1,7 +1,13 @@
 // Pure helpers: no DOM, no Leaflet, so they run under `node --test` as well.
 import { STALE_READING_MS } from "./config.js";
 
+/** @typedef {import("./types.js").Station} Station */
+/** @typedef {import("./types.js").StationDistance} StationDistance */
+/** @typedef {import("./types.js").LatLngTuple} LatLngTuple */
+
+/** @type {Record<string, string>} */
 const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+/** @param {unknown} value */
 export const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 
 const TIMEZONE = "Asia/Bangkok";
@@ -9,23 +15,30 @@ const shortTime = new Intl.DateTimeFormat("th-TH", { timeZone: TIMEZONE, day: "n
 export const clockTime = new Intl.DateTimeFormat("th-TH", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit", hour12: false });
 export const longDate = new Intl.DateTimeFormat("th-TH", { timeZone: TIMEZONE, weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-const toTime = (value) => value ? new Date(value).getTime() : NaN;
+/** @param {unknown} value */
+const toTime = (value) => typeof value === "string" || typeof value === "number" ? new Date(value).getTime() : NaN;
 
+/** @param {unknown} value */
 export function fmtTime(value) {
   const time = toTime(value);
   return Number.isNaN(time) ? "ไม่มีเวลาตรวจวัด" : shortTime.format(time);
 }
 
+/** @param {unknown} value @param {number} [now] */
 export function age(value, now = Date.now()) {
   const time = toTime(value);
   return Number.isNaN(time) ? Infinity : now - time;
 }
 
+/** @param {Pick<Station, "measuredAt">} station @param {number} [now] */
 export const isFresh = (station, now = Date.now()) => age(station.measuredAt, now) < STALE_READING_MS;
-export const levelText = (station) => Number.isFinite(station.level) ? station.level.toFixed(2) : "—";
+/** @param {Pick<Station, "level">} station */
+export const levelText = ({ level }) => typeof level === "number" && Number.isFinite(level) ? level.toFixed(2) : "—";
+/** @param {number} n */
 export const formatCount = (n) => n.toLocaleString("th-TH");
 
 const EARTH_DIAMETER_KM = 12742;
+/** Great-circle distance. @param {LatLngTuple} a @param {LatLngTuple} b */
 export function distanceKm(a, b) {
   const r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLng = (b[1] - a[1]) * r;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLng / 2) ** 2;
@@ -33,22 +46,30 @@ export function distanceKm(a, b) {
 }
 
 // Leaflet throws on NaN coordinates, so anything from storage or the network is checked first.
+/** @param {unknown} list @returns {Station[]} */
 export function validStations(list) {
   if (!Array.isArray(list)) return [];
-  return list
-    .filter((s) => s && typeof s === "object" && s.id !== undefined && s.id !== null && Number.isFinite(s.lat) && Number.isFinite(s.lng))
-    .map((s) => ({ ...s, id: String(s.id), level: Number.isFinite(s.level) ? s.level : null }));
+  /** @type {Station[]} */
+  const out = [];
+  for (const s of list) {
+    if (!s || typeof s !== "object" || s.id === undefined || s.id === null || !Number.isFinite(s.lat) || !Number.isFinite(s.lng)) continue;
+    out.push({ ...s, id: String(s.id), name: typeof s.name === "string" ? s.name : `สถานี ${s.id}`, level: Number.isFinite(s.level) ? s.level : null, measuredAt: typeof s.measuredAt === "string" ? s.measuredAt : null });
+  }
+  return out;
 }
 
 // Distance is computed once per station instead of inside the sort comparator.
+/** @param {Station[]} stations @param {LatLngTuple} from @returns {StationDistance[]} */
 export function byDistance(stations, from) {
   return stations
     .map((station) => ({ station, distance: distanceKm(from, [station.lat, station.lng]) }))
     .sort((a, b) => a.distance - b.distance);
 }
 
+/** @param {Station[]} stations @param {LatLngTuple} from @param {number} limit */
 export const nearestStations = (stations, from, limit) => byDistance(stations, from).slice(0, limit);
 
+/** @param {Station[]} stations @param {string} rawQuery @param {LatLngTuple} from @returns {Station[]} */
 export function searchStations(stations, rawQuery, from) {
   const query = rawQuery.trim().toLocaleLowerCase("th");
   if (!query) return [];

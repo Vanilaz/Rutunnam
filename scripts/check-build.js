@@ -1,3 +1,4 @@
+// @ts-check
 // Static checks run by `npm run build` (Vercel build step). No bundler: files ship as-is.
 const fs = require("node:fs");
 const path = require("node:path");
@@ -9,6 +10,7 @@ const required = ["public/index.html", "public/styles.css", "public/manifest.web
 const errors = [];
 for (const file of required) if (!fs.existsSync(file)) errors.push(`Missing ${file}`);
 
+/** @param {string} dir @returns {string[]} */
 function listModules(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
@@ -17,29 +19,41 @@ function listModules(dir) {
   });
 }
 
+const ENTRY = path.join(MODULE_DIR, "main.js");
 const modules = fs.existsSync(MODULE_DIR) ? listModules(MODULE_DIR) : [];
+/** @param {string} file */
 const toUrl = (file) => `/${path.relative(PUBLIC_DIR, file).split(path.sep).join("/")}`;
 
-// Every relative import must point at a file that will actually be deployed.
-for (const file of modules) {
+// Walk the runtime import graph from main.js; JSDoc-only files such as types.js are never fetched.
+/** @type {Set<string>} */
+const reachable = new Set();
+const queue = fs.existsSync(ENTRY) ? [ENTRY] : [];
+while (queue.length) {
+  const file = /** @type {string} */ (queue.pop());
+  if (reachable.has(file)) continue;
+  reachable.add(file);
   const source = fs.readFileSync(file, "utf8");
-  for (const [, specifier] of source.matchAll(/\bfrom\s+"(\.{1,2}\/[^"]+)"/g)) {
+  for (const [, specifier] of source.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+"(\.{1,2}\/[^"]+)"/gm)) {
     const target = path.join(path.dirname(file), specifier);
-    if (!fs.existsSync(target)) errors.push(`${file}: import "${specifier}" not found`);
+    if (fs.existsSync(target)) queue.push(target);
+    else errors.push(`${file}: import "${specifier}" not found`);
   }
 }
+for (const file of modules) {
+  if (!reachable.has(file) && !fs.readFileSync(file, "utf8").trimEnd().endsWith("export {};")) errors.push(`${file} is not imported by main.js`);
+}
 
-// modulepreload hints must list exactly the shipped modules, or the browser fetches them in a waterfall.
+// modulepreload hints must list exactly the runtime modules, or the browser fetches them in a waterfall.
 if (fs.existsSync("public/index.html")) {
   const html = fs.readFileSync("public/index.html", "utf8");
   const preloaded = new Set([...html.matchAll(/<link rel="modulepreload" href="([^"]+)">/g)].map((m) => m[1]));
-  const shipped = new Set(modules.map(toUrl));
+  const shipped = new Set([...reachable].map(toUrl));
   for (const url of shipped) if (!preloaded.has(url)) errors.push(`index.html: add <link rel="modulepreload" href="${url}">`);
-  for (const url of preloaded) if (!shipped.has(url)) errors.push(`index.html: modulepreload ${url} has no file`);
+  for (const url of preloaded) if (!shipped.has(url)) errors.push(`index.html: remove modulepreload ${url} (not a runtime module)`);
 }
 
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-console.log(`Static Vercel project ready (${modules.length} browser modules)`);
+console.log(`Static Vercel project ready (${reachable.size} runtime modules)`);

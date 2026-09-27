@@ -2,16 +2,25 @@
 import { DEFAULT_CAMERA_REFRESH_MS, THAIWATER_URL } from "./config.js";
 import { escapeHtml as esc, fmtTime, isFresh, levelText } from "./utils.js";
 
+/** @typedef {import("./types.js").Station} Station */
+/** @typedef {import("./types.js").Camera} Camera */
+/** @typedef {import("./types.js").StationDistance} StationDistance */
+
 const STALE_NOTE = " · ข้อมูลเก่า/ไม่ทราบเวลา";
 // Only http(s) links are rendered; anything else (e.g. "javascript:") falls back to the data source.
-const safeUrl = (href) => /^https?:\/\//i.test(String(href ?? "")) ? href : THAIWATER_URL;
+/** @param {unknown} href @returns {string} */
+const safeUrl = (href) => typeof href === "string" && /^https?:\/\//i.test(href) ? href : THAIWATER_URL;
+/** @param {unknown} href @param {string} label @param {string} [className] */
 const external = (href, label, className = "link-button") => `<a${className ? ` class="${className}"` : ""} href="${esc(safeUrl(href))}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+/** Arguments are trusted HTML; escape before passing. @param {string} title @param {string} body @param {string} link */
 const infoCard = (title, body, link) => `<div class="info-card"><strong>${title}</strong><p>${body}</p>${link}</div>`;
 
+/** @param {Station} s */
 export function stationPopupHtml(s) {
   return `<strong>${esc(s.name)}</strong><br><small>${esc(s.province || "สถานีตรวจวัด")}</small><br>ระดับน้ำ ${levelText(s)} ม. รทก.<br><small>ตรวจวัด: ${esc(fmtTime(s.measuredAt))}${isFresh(s) ? "" : STALE_NOTE}</small><br>${external(s.sourceUrl || THAIWATER_URL, "ดูที่มา ↗", "")}`;
 }
 
+/** @param {Readonly<Camera>} camera */
 export function cameraPopupHtml(camera) {
   const refreshNote = camera.refreshMs
     ? "ภาพตัวอย่างต้นทางอัปเดตราวทุก 2 นาที · หมุดเป็นพิกัดพื้นที่โดยประมาณ"
@@ -33,6 +42,7 @@ export const FLOOD_TAB_HTML = `<div class="empty"><svg viewBox="0 0 24 24"><path
   + infoCard("GISTDA · แผนที่น้ำท่วมจากดาวเทียม", "ดูขอบเขตที่ตรวจพบ พร้อมวันที่ของภาพแต่ละชุด ภาพดาวเทียมอาจไม่ใช่สภาพ ณ นาทีนี้", external("https://disaster.gistda.or.th/flood", "เปิดแผนที่ GISTDA ↗"))
   + infoCard("กทม. · น้ำท่วมถนน", "จุดตรวจวัดระดับน้ำบนถนนในเขตกรุงเทพมหานคร", external("https://floodbangkok.bangkok.go.th/road-flood", "เปิดข้อมูล กทม. ↗"));
 
+/** @param {ReadonlyArray<Readonly<Camera>>} cameras */
 export function cameraTabHtml(cameras) {
   const images = cameras.filter((c) => !c.directory);
   const directories = cameras.filter((c) => c.directory);
@@ -47,10 +57,14 @@ export function cameraTabHtml(cameras) {
   return `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${images.length} กล้อง · ${directories.length} ศูนย์</span></div><p class="subtle">กล้อง กทม. ${bmaCount} จุด และกล้องระดับน้ำสะพานแดงของเทศบาลนครรังสิต กดเพื่อดูภาพบนแผนที่</p>${cards}<p class="subtle">ภาพเป็นชุด JPEG ที่ต้นทางอัปเดตเป็นระยะ ไม่ใช่วิดีโอสตรีม หากภาพไม่ขึ้นให้เปิดเว็บไซต์ต้นทาง</p>`;
 }
 
+/** @param {StationDistance} item */
 function stationCardHtml({ station: s, distance }) {
   return `<button type="button" class="station-card" data-station="${esc(s.id)}"><span class="row"><strong>${esc(s.name)}</strong><span class="distance">${distance.toFixed(1)} km</span></span><span class="meta">${esc(s.province || s.river || "ข้อมูลสถานี")}</span><span class="value">${levelText(s)} <small>เมตร รทก.</small></span><span class="time">ตรวจวัด ${esc(fmtTime(s.measuredAt))}${isFresh(s) ? "" : STALE_NOTE}</span></button>`;
 }
 
+/**
+ * @param {{ nearest: StationDistance[], hasStations: boolean, error: string | null, fetchedAt: string | null }} view
+ */
 export function waterTabHtml({ nearest, hasStations, error, fetchedAt }) {
   if (!hasStations && error) return `<div class="empty"><strong>ยังโหลดสถานีไม่ได้</strong><p>${esc(error)}</p><button class="link-button" data-action="retry" type="button">ลองโหลดอีกครั้ง</button></div>`;
   if (!hasStations) return `<div class="empty"><strong>กำลังโหลดสถานี</strong><p>รอสักครู่เพื่อแสดงข้อมูลตรวจวัดล่าสุด</p></div>`;

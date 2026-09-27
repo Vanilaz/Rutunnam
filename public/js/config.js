@@ -1,5 +1,8 @@
 // Static configuration shared by every module. No DOM access here.
-export const RANGSIT = Object.freeze([13.986, 100.616]);
+/** @typedef {import("./types.js").Camera} Camera */
+
+/** @type {import("./types.js").LatLngTuple} */
+export const RANGSIT = [13.986, 100.616];
 export const DEFAULT_ZOOM = 11;
 export const FOCUS_ZOOM = 13;
 export const LOCATE_ZOOM = 12;
@@ -35,6 +38,7 @@ export const MAPLIBRE_ASSETS = Object.freeze({
 });
 
 // BMA DDS publishes six coordinates. Rangsit cameras use approximate area pins.
+/** @type {ReadonlyArray<Readonly<Camera>>} */
 export const CAMERA_SOURCES = Object.freeze([
   { id: "dds1", name: "บางเขนใหม่", area: "คลอง · กรุงเทพมหานคร", lat: 13.8712025, lng: 100.6009522, url: "https://dds.bangkok.go.th/cctv1.php", image: "https://dds.bangkok.go.th/cctv-image/cctv1.jpg" },
   { id: "dds2", name: "สะพานพระปิ่นเกล้า", area: "แม่น้ำเจ้าพระยา", lat: 13.7638088, lng: 100.4880244, url: "https://dds.bangkok.go.th/cctv2.php", image: "https://dds.bangkok.go.th/cctv-image/cctv2.jpg" },
@@ -45,4 +49,4 @@ export const CAMERA_SOURCES = Object.freeze([
   { id: "rangsit-water", name: "ท่าน้ำสะพานแดง · ระดับน้ำรังสิต", area: "คลองรังสิตประยูรศักดิ์ · พิกัดพื้นที่โดยประมาณ", lat: 13.986, lng: 100.616, url: "https://rangsitcity.go.th/cctvrangsitcity/", image: "https://www.ipcamlive.com/player/snapshot.php?alias=6ab688b9f0f7d", refreshMs: 2 * MINUTE_MS, source: "เทศบาลนครรังสิต" },
   { id: "rangsit", name: "กล้องจราจรเทศบาลนครรังสิต", area: "รังสิต ปทุมธานี", lat: 13.982, lng: 100.621, url: "https://rangsitcity.go.th/cctvrangsitcity/", note: "มีกล้องจราจรหลายจุดบนเว็บไซต์เทศบาล ลิงก์บางกล้องเป็น HTTP จึงเปิดภาพตรงบนเว็บ HTTPS ไม่ได้", directory: true },
   { id: "rid", name: "ศูนย์กล้องลุ่มน้ำเจ้าพระยา", area: "ลุ่มน้ำเจ้าพระยา", lat: 14.35, lng: 100.45, url: "https://wmsc.rid.go.th/cctv2/", note: "เว็บไซต์กรมชลประทานระบุว่ารองรับ Firefox", directory: true }
-].map(Object.freeze));
+].map((camera) => Object.freeze(camera)));
