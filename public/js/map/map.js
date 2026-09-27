@@ -1,5 +1,8 @@
 // Leaflet map bootstrap and shared camera-movement helpers.
-import { DEFAULT_ZOOM } from "../config.js";
+import { DEFAULT_ZOOM, LABEL_MIN_ZOOM } from "../config.js";
+
+export const OVERLAY_TILE_PANE = "overlayTiles";
+const OVERLAY_TILE_Z_INDEX = 350; // Between Leaflet's tilePane (200) and overlayPane (400).
 
 /**
  * @param {string} containerId
@@ -10,6 +13,15 @@ export function createMap(containerId, center) {
   if (typeof window.L === "undefined") return null;
   const map = L.map(containerId, { zoomControl: false, preferCanvas: true }).setView(center, DEFAULT_ZOOM);
   L.control.zoom({ position: "bottomright" }).addTo(map);
+  // Flood-extent and traffic tiles sit above the basemap (incl. the MapLibre canvas) but below markers.
+  const overlayTiles = map.createPane(OVERLAY_TILE_PANE);
+  overlayTiles.style.zIndex = String(OVERLAY_TILE_Z_INDEX);
+  overlayTiles.style.pointerEvents = "none";
+  // Lets CSS show station labels only when zoomed in far enough to read them.
+  const container = map.getContainer();
+  const syncZoomClass = () => container.classList.toggle("show-labels", map.getZoom() >= LABEL_MIN_ZOOM);
+  map.on("zoomend", syncZoomClass);
+  syncZoomClass();
   // Hide the floating search/badge while a popup is open so the popup is never covered.
   const panel = map.getContainer().closest(".map-panel");
   map.on("popupopen", () => panel?.classList.add("showing-popup"));

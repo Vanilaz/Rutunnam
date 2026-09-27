@@ -45,6 +45,31 @@ export function distanceKm(a, b) {
   return EARTH_DIAMETER_KM * Math.asin(Math.sqrt(h));
 }
 
+/** @param {unknown} n @returns {number | null} */
+const finiteOrNull = (n) => typeof n === "number" && Number.isFinite(n) ? n : null;
+
+/**
+ * @param {unknown} list
+ * @returns {import("./types.js").RoadFlood[]}
+ */
+export function validRoadFloods(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((r) => r && typeof r === "object" && Number.isFinite(r.lat) && Number.isFinite(r.lng))
+    .map((r) => ({
+      id: String(r.id ?? `${r.lat},${r.lng}`),
+      lat: r.lat,
+      lng: r.lng,
+      name: typeof r.name === "string" && r.name ? r.name : "จุดรายงานถนนน้ำท่วม",
+      province: typeof r.province === "string" ? r.province : "",
+      depthCm: finiteOrNull(r.depthCm),
+      reportedAt: typeof r.reportedAt === "string" ? r.reportedAt : null
+    }));
+}
+
+/** @param {LatLngTuple} from @param {number} radiusKm @param {{ lat: number, lng: number }} point */
+export const withinKm = (from, radiusKm, point) => distanceKm(from, [point.lat, point.lng]) <= radiusKm;
+
 // Leaflet throws on NaN coordinates, so anything from storage or the network is checked first.
 /** @param {unknown} list @returns {Station[]} */
 export function validStations(list) {
@@ -53,7 +78,16 @@ export function validStations(list) {
   const out = [];
   for (const s of list) {
     if (!s || typeof s !== "object" || s.id === undefined || s.id === null || !Number.isFinite(s.lat) || !Number.isFinite(s.lng)) continue;
-    out.push({ ...s, id: String(s.id), name: typeof s.name === "string" ? s.name : `สถานี ${s.id}`, level: Number.isFinite(s.level) ? s.level : null, measuredAt: typeof s.measuredAt === "string" ? s.measuredAt : null });
+    out.push({
+      ...s,
+      id: String(s.id),
+      name: typeof s.name === "string" ? s.name : `สถานี ${s.id}`,
+      level: finiteOrNull(s.level),
+      bank: finiteOrNull(s.bank),
+      storagePercent: finiteOrNull(s.storagePercent),
+      criticalLevel: finiteOrNull(s.criticalLevel),
+      measuredAt: typeof s.measuredAt === "string" ? s.measuredAt : null
+    });
   }
   return out;
 }

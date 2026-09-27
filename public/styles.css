@@ -12,3 +12,51 @@
 .map-explore{position:absolute;z-index:501;left:16px;top:16px;width:min(410px,calc(100% - 92px));pointer-events:none}.map-explore>*{pointer-events:auto}.map-search{height:48px;display:flex;background:#fff;box-shadow:0 5px 22px #10283f2c;border:1px solid #dbe6e9;border-radius:13px;overflow:hidden}.map-search input{border:0;outline:0;min-width:0;flex:1;padding:0 15px;font-size:15px;color:var(--ink);background:transparent}.map-search input:focus-visible{outline:2px solid #43bdb7;outline-offset:-2px}.map-search button{border:0;background:#146d83;color:white;padding:0 15px;font-weight:700}.quick-filters{display:flex;gap:7px;margin-top:8px;overflow:auto;scrollbar-width:none}.quick-filters button{border:1px solid #d7e5ea;border-radius:20px;background:#fff;box-shadow:0 3px 12px #10283f20;padding:7px 12px;color:#254359;font-size:12px;font-weight:700;white-space:nowrap}.quick-filters button.selected{background:#146d83;color:white;border-color:#146d83}.search-message{margin-top:7px;padding:8px 11px;border-radius:8px;background:white;box-shadow:0 2px 10px #10283f1a;font-size:12px;color:#26465b}.map-top{top:115px}.map-badge{max-width:75%}.map-locate{position:absolute;right:16px;bottom:84px;z-index:501;min-height:44px;padding:0 13px;border:1px solid #dce8ea;border-radius:22px;color:#16445a;background:white;box-shadow:0 4px 18px #10283f30;font-weight:700}.mobile-nav{display:none}
 @media(max-width:720px){.topbar{height:56px}.brand-mark{width:34px;height:34px}.brand strong{font-size:17px}.brand small{font-size:8px}.main{padding:0 0 82px}.intro,.footer{display:none}.workspace{gap:0}.map-panel{height:calc(100dvh - 130px);min-height:420px;max-height:none;border:0;border-radius:0}.map-explore{left:12px;top:12px;width:calc(100% - 76px)}.map-search{height:46px}.map-search button{padding:0 12px}.quick-filters{width:calc(100vw - 24px);padding:1px 0 5px}.map-top{top:112px;left:12px;right:12px}.map-badge{font-size:11px;max-width:calc(100% - 52px);line-height:1.3}.map-tool{width:42px;height:42px}.map-locate{right:12px;bottom:44px}.map-legend{display:none}.sidebar,.insights{border-radius:0;box-shadow:none;border-left:0;border-right:0;min-height:0}.sidebar{padding:18px}.insights{min-height:350px}.tab-content{max-height:none}.mobile-nav{display:flex;position:fixed;z-index:1500;bottom:0;left:0;right:0;height:calc(64px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:#fff;border-top:1px solid #dbe5e9;box-shadow:0 -5px 22px #10283f18}.mobile-nav button{flex:1;min-width:0;border:0;background:transparent;color:#657e8e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:22px;line-height:1}.mobile-nav button span{font-size:10px;font-weight:700;line-height:1.5}.mobile-nav button.active{color:#0b797b}.map-panel,.insights,.sidebar{scroll-margin-top:56px}}
 .map-style-label{display:block;margin:22px 0 7px;font-size:11px;font-weight:700;color:#607b89}.map-style-select{width:100%;min-height:40px;border:1px solid #d7e8e8;border-radius:9px;padding:7px 10px;background:#fff;color:#17354a;font-size:12px}.map-style-select:focus-visible{outline:3px solid #43bdb7}.maplibregl-map{font-family:'IBM Plex Sans Thai',sans-serif}
+
+/* ---- Bank risk, flood and traffic layers ---- */
+.layer-icon.red{background:#fdecee;color:#d6334a}
+.layer-icon.sky{background:#e8f0fd;color:#2f6fe0}
+.layer-icon.green{background:#e9f7ec;color:#2f9b4a}
+.layer-row.sub-row{padding-left:14px}
+.layer-row.sub-row .layer-icon{width:28px;height:28px}
+.layer-row.is-disabled{cursor:not-allowed;opacity:.62}
+.layer-row input:disabled+.switch{background:#e1e7eb}
+.legend-dot.overflow{background:#d6334a;box-shadow:0 0 0 3px #d6334a33}
+.legend-dot.high{background:#f08c2b}
+.legend-dot.low{background:#4f8fd6}
+.legend-dot.gray{background:#9aa9b4}
+.legend-dot.road{background:#e28a17;border-radius:3px}
+.map-legend{max-width:calc(100% - 140px)}
+
+.overflow-pin{position:relative;width:22px;height:22px;cursor:pointer}
+.overflow-ring{position:absolute;inset:0;border-radius:50%;border:3px solid #d6334a;animation:overflow-pulse 1.6s ease-out infinite}
+.overflow-label{display:none;position:absolute;left:24px;top:1px;white-space:nowrap;background:#d6334a;color:#fff;font:700 11px Manrope,sans-serif;padding:2px 6px;border-radius:6px;box-shadow:0 2px 6px #0003}
+.show-labels .overflow-label{display:block}
+@keyframes overflow-pulse{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.9);opacity:0}}
+
+.road-flood-pin{width:24px;height:24px;border-radius:7px;background:#e28a17;color:#fff;border:2px solid #fff;box-shadow:0 2px 8px #0004;display:grid;place-items:center;font:800 15px/1 Manrope,sans-serif}
+
+.risk-badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700;color:#fff;background:#9aa9b4}
+.risk-badge.risk-overflow{background:#d6334a}
+.risk-badge.risk-high{background:#f08c2b}
+.risk-badge.risk-normal,.risk-badge.risk-belowBank{background:#0d9e9a}
+.risk-badge.risk-low{background:#4f8fd6}
+.risk-badge.risk-stale{background:#b7c2ca;color:#34495a}
+.risk-card{border-left-width:4px}
+.risk-edge-overflow{border-left-color:#d6334a}
+.risk-edge-high{border-left-color:#f08c2b}
+.risk-card .row+.row{margin-top:6px}
+.risk-text-overflow{color:#d6334a}
+.risk-text-high{color:#d9761b}
+
+.nearby-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.nearby-summary div{border:1px solid #e7edf0;border-radius:12px;padding:10px 8px;text-align:center;background:#fff}
+.nearby-summary strong{display:block;font:800 22px Manrope,sans-serif;color:#17354a}
+.nearby-summary span{font-size:11px;color:#71859a}
+.legend-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:11px;color:#51687a;margin:0 0 10px}
+.swatch{display:inline-block;width:18px;height:6px;border-radius:3px;margin-right:-4px}
+.tab{padding:9px 2px;font-size:11.5px}
+.info-card .link-button{border:0;cursor:pointer}
+
+@media(prefers-reduced-motion:reduce){.overflow-ring{animation:none;opacity:.8}}
+@media(max-width:720px){.map-legend{display:none}}

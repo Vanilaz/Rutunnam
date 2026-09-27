@@ -97,3 +97,81 @@ test.describe("basemap", () => {
     expect(net.pageErrors).toEqual([]);
   });
 });
+
+test.describe("bank overflow", () => {
+  test("flags over-bank stations on the map and in the risk tab", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#risk-count")).toHaveText("ล้นตลิ่ง 1 · ใกล้ตลิ่ง 1 สถานี");
+    await expect(page.locator(".overflow-pin")).toHaveCount(1);
+    await page.locator('.tab[data-tab="risk"]').click();
+    const cards = page.locator("#tab-content .risk-card");
+    await expect(cards).toHaveCount(2);
+    await expect(cards.first()).toContainText("สถานีทดสอบ 11");
+    await expect(cards.first()).toContainText("ล้นตลิ่ง");
+    await expect(cards.nth(1)).toContainText("น้ำมาก ใกล้ตลิ่ง");
+    await cards.first().click();
+    await expect(page.locator(".leaflet-popup-content")).toContainText("112% ของความจุลำน้ำ");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("opening a normal station switches 'risk only' back off", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".station-card")).toHaveCount(8);
+    await page.locator("label:has(#toggle-risk-only)").click();
+    await expect(page.locator("#toggle-risk-only")).toBeChecked();
+    await page.locator('.station-card:has-text("สถานีทดสอบ 10")').first().click();
+    await expect(page.locator("#toggle-risk-only")).not.toBeChecked();
+    await expect(page.locator(".leaflet-popup-content")).toContainText("สถานีทดสอบ 10");
+  });
+});
+
+test.describe("flood and traffic layers", () => {
+  test("satellite flood tiles load through the server proxy", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#toggle-flood")).toBeChecked();
+    await expect.poll(() => net.requests.filter((url) => url.includes("/api/flood-wms?") && /srs=EPSG%3A3857/i.test(url)).length).toBeGreaterThan(0);
+    expect(net.requests.some((url) => url.includes("gistda"))).toBe(false);
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("traffic quick filter turns on live traffic tiles", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#toggle-traffic")).toBeEnabled();
+    await page.locator('[data-quick="road"]').click();
+    await expect(page.locator("#toggle-traffic")).toBeChecked();
+    await expect.poll(() => net.requests.filter((url) => url.startsWith("https://api.tomtom.com/traffic/map/4/tile/flow/")).length).toBeGreaterThan(0);
+    await expect(page.locator("#tab-content")).toContainText("การจราจรสด");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("layers without API keys are disabled and explained", async ({ page, net }) => {
+    net.config({ status: 200, body: JSON.stringify({ flood: { available: false }, traffic: { available: false }, roadFlood: { available: true } }) });
+    await page.goto("/");
+    await expect(page.locator("#toggle-flood")).toBeDisabled();
+    await expect(page.locator("#toggle-traffic")).toBeDisabled();
+    await expect(page.locator("#flood-layer-note")).toHaveText("ยังไม่ได้ตั้งค่า GISTDA API key");
+    await page.locator('.tab[data-tab="flood"]').click();
+    await expect(page.locator("#tab-content")).toContainText("GISTDA_API_KEY");
+    expect(net.requests.some((url) => url.includes("/api/flood-wms"))).toBe(false);
+  });
+
+  test("flooded roads appear as pins and in the flood tab", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#road-flood-note")).toHaveText("ThaiWater · 2 จุดรายงาน");
+    await expect(page.locator(".road-flood-pin")).toHaveCount(2);
+    await page.locator('.tab[data-tab="flood"]').click();
+    const first = page.locator("#tab-content [data-road]").first();
+    await expect(first).toContainText("ถ.พหลโยธิน ขาเข้า");
+    await expect(first).toContainText("น้ำลึกประมาณ 25 ซม.");
+    await first.click();
+    await expect(page.locator(".leaflet-popup-content")).toContainText("ถ.พหลโยธิน ขาเข้า");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("an unreadable road feed is not shown as 'no flooding'", async ({ page, net }) => {
+    net.roadFlood({ status: 200, body: JSON.stringify({ reports: [], status: "unsupported-format" }) });
+    await page.goto("/");
+    await page.locator('.tab[data-tab="flood"]').click();
+    await expect(page.locator("#tab-content")).toContainText("ไม่ได้แปลว่าไม่มีน้ำท่วม");
+  });
+});
