@@ -7,6 +7,7 @@
  * @property {(id: string) => void} onStation
  * @property {(id: string) => void} onCamera
  * @property {(id: string) => void} onRoad
+ * @property {(key: string) => void} onViewer  e.g. "water:dds1", "traffic:itic-A1"
  * @property {(action: string) => void} onAction  e.g. "retry", "toggle-traffic"
  */
 
@@ -14,12 +15,13 @@
  * @param {HTMLElement} container
  * @param {ListHandlers} handlers
  */
-export function createListPanel(container, { onStation, onCamera, onRoad, onAction }) {
+export function createListPanel(container, { onStation, onCamera, onRoad, onViewer, onAction }) {
   container.addEventListener("click", (event) => {
-    const target = event.target instanceof Element ? event.target.closest("[data-station], [data-camera], [data-road], [data-action]") : null;
+    const target = event.target instanceof Element ? event.target.closest("[data-station], [data-camera], [data-road], [data-viewer], [data-action]") : null;
     if (!(target instanceof HTMLElement) || !container.contains(target)) return;
-    const { station, camera, road, action } = target.dataset;
+    const { station, camera, road, viewer, action } = target.dataset;
     if (station !== undefined) onStation(station);
+    else if (viewer !== undefined) onViewer(viewer);
     else if (camera !== undefined) onCamera(camera);
     else if (road !== undefined) onRoad(road);
     else if (action !== undefined) onAction(action);
@@ -27,12 +29,13 @@ export function createListPanel(container, { onStation, onCamera, onRoad, onActi
 
   let lastHtml = "";
   return {
-    /** @param {string} html */
+    /** @param {string} html @returns {boolean} true when the DOM was replaced */
     render(html) {
       // Skip identical re-renders so focus and scroll position are kept.
-      if (html === lastHtml) return;
+      if (html === lastHtml) return false;
       lastHtml = html;
       container.innerHTML = html;
+      return true;
     }
   };
 }

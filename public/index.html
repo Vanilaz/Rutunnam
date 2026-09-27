@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://tile.openstreetmap.org">
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
@@ -17,6 +18,7 @@
   <link rel="modulepreload" href="/js/main.js">
   <link rel="modulepreload" href="/js/api.js">
   <link rel="modulepreload" href="/js/config.js">
+  <link rel="modulepreload" href="/js/load.js">
   <link rel="modulepreload" href="/js/map/basemap.js">
   <link rel="modulepreload" href="/js/map/cameras-layer.js">
   <link rel="modulepreload" href="/js/map/flood-layer.js">
@@ -24,10 +26,12 @@
   <link rel="modulepreload" href="/js/map/map.js">
   <link rel="modulepreload" href="/js/map/road-flood-layer.js">
   <link rel="modulepreload" href="/js/map/stations-layer.js">
+  <link rel="modulepreload" href="/js/map/traffic-cameras-layer.js">
   <link rel="modulepreload" href="/js/map/traffic-layer.js">
   <link rel="modulepreload" href="/js/risk.js">
   <link rel="modulepreload" href="/js/storage.js">
   <link rel="modulepreload" href="/js/templates.js">
+  <link rel="modulepreload" href="/js/ui/camera-viewer.js">
   <link rel="modulepreload" href="/js/ui/clock.js">
   <link rel="modulepreload" href="/js/ui/dom.js">
   <link rel="modulepreload" href="/js/ui/list-panel.js">
@@ -41,8 +45,15 @@
   <div class="shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 5C16 17 10 23 10 31a14 14 0 0 0 28 0c0-8-6-14-14-26Z" fill="currentColor"/><path d="M15 32c4-3 8-3 12 0s8 3 12 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg></span><span><strong>รู้ทันน้ำ</strong><small>THAILAND FLOOD WATCH</small></span></div>
-      <div class="top-actions"><span class="live-chip"><i></i> ติดตามข้อมูล</span><button class="icon-button" id="refresh" type="button" aria-label="รีเฟรชข้อมูล" title="รีเฟรชข้อมูล"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg></button></div>
+      <div class="top-actions"><span class="live-chip"><i></i> ติดตามข้อมูล</span><span class="updated-at" aria-live="polite">อัปเดต <b id="updated-at">--:--</b></span><button class="icon-button" id="refresh" type="button" aria-label="รีเฟรชข้อมูล" title="รีเฟรชข้อมูล"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/></svg></button></div>
     </header>
+    <button id="alert-banner" class="alert-banner" type="button" hidden></button>
+    <section class="kpi-strip" aria-label="สรุปสถานการณ์">
+      <button type="button" class="kpi" data-kpi="risk"><strong id="kpi-overflow">–</strong><span>สถานีล้นตลิ่ง</span></button>
+      <button type="button" class="kpi" data-kpi="risk"><strong id="kpi-high">–</strong><span>ใกล้ตลิ่ง</span></button>
+      <button type="button" class="kpi" data-kpi="flood"><strong id="kpi-roads">–</strong><span>ถนนน้ำท่วม</span></button>
+      <button type="button" class="kpi" data-kpi="camera"><strong id="kpi-cameras">–</strong><span>กล้อง CCTV</span></button>
+    </section>
 
     <main id="content" class="main">
       <section class="intro" aria-labelledby="page-title">
@@ -51,7 +62,7 @@
       </section>
 
       <div class="workspace">
-        <aside class="sidebar" aria-label="ตัวควบคุมแผนที่">
+        <aside class="sidebar" id="layer-sheet" aria-label="ตัวควบคุมแผนที่"><button type="button" class="sheet-close" id="close-layers" aria-label="ปิดตัวกรอง">ปิด ✕</button>
           <div class="sidebar-head"><div><span class="section-kicker">พื้นที่ติดตาม</span><h2>สถานการณ์รอบตัว</h2></div><span class="area-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM9 21v-7h6v7"/></svg></span></div>
           <div class="location-card"><span class="mini-label">จุดศูนย์กลาง</span><strong id="area-title">รังสิต · คลองหลวง</strong><span id="area-coords">ปทุมธานี ประเทศไทย</span><div class="location-actions"><button id="locate" type="button" class="small-primary"><svg viewBox="0 0 24 24"><path d="m12 21 7-17-17 7 8 2z"/></svg> ตำแหน่งฉัน</button><button id="home-button" type="button" class="small-plain"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v10H3zM9 21v-7h6v7"/></svg> <span id="home-button-label">ปักหมุดบ้าน</span></button></div><p id="location-message" class="location-message" aria-live="polite">เลือกตำแหน่งฉัน หรือปักหมุดบ้านบนแผนที่</p></div>
 
@@ -62,7 +73,8 @@
           <label class="layer-row"><span class="layer-icon sky"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-3 3 6 2-3h7M4 19h16"/></svg></span><span class="layer-text"><strong>พื้นที่น้ำท่วม (ดาวเทียม)</strong><small id="flood-layer-note">GISTDA · กำลังตรวจสอบ</small></span><input id="toggle-flood" type="checkbox"><span class="switch"></span></label>
           <label class="layer-row"><span class="layer-icon amber"><svg viewBox="0 0 24 24"><path d="M5 21 9 3m6 0 4 18M12 5v2m0 4v2m0 4v2"/></svg></span><span class="layer-text"><strong>ถนนน้ำท่วม</strong><small id="road-flood-note">ThaiWater · กำลังโหลด</small></span><input id="toggle-road-flood" type="checkbox" checked><span class="switch"></span></label>
           <label class="layer-row"><span class="layer-icon green"><svg viewBox="0 0 24 24"><path d="M5 17h14M6 17l1.5-6h9L18 17M7 20v-3m10 3v-3M8 14h.01M16 14h.01"/></svg></span><span class="layer-text"><strong>การจราจร</strong><small id="traffic-note">กำลังตรวจสอบ</small></span><input id="toggle-traffic" type="checkbox"><span class="switch"></span></label>
-          <label class="layer-row"><span class="layer-icon violet"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2M7 3h7"/></svg></span><span class="layer-text"><strong>กล้อง CCTV</strong><small id="camera-note">กล้องดูระดับน้ำและศูนย์กล้องในพื้นที่</small></span><input id="toggle-camera" type="checkbox" checked><span class="switch"></span></label>
+          <label class="layer-row"><span class="layer-icon navy"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2"/></svg></span><span class="layer-text"><strong>กล้องจราจรทั่วประเทศ</strong><small id="traffic-camera-note">iTIC · กำลังโหลด</small></span><input id="toggle-traffic-cameras" type="checkbox" checked><span class="switch"></span></label>
+          <label class="layer-row"><span class="layer-icon violet"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2M7 3h7"/></svg></span><span class="layer-text"><strong>กล้องดูระดับน้ำ</strong><small id="camera-note">กทม. · รังสิต · ศูนย์กล้องในพื้นที่</small></span><input id="toggle-camera" type="checkbox" checked><span class="switch"></span></label>
 
           <div class="source-box"><span class="source-dot"></span><div><strong id="feed-state">กำลังเชื่อมต่อข้อมูล</strong><p id="feed-detail">กำลังตรวจสอบสถานีวัดน้ำล่าสุด</p></div></div>
           <p class="sidebar-foot">ข้อมูลสถานีไม่ได้ยืนยันสภาพน้ำที่บ้านหรือบนถนน • อย่าใช้แผนที่นี้แทนประกาศเตือนภัยในพื้นที่</p>
@@ -73,6 +85,7 @@
           <div class="map-explore">
             <form id="station-search" class="map-search" role="search"><label class="sr-only" for="station-query">ค้นหาสถานีวัดน้ำหรือจังหวัด</label><input id="station-query" type="search" placeholder="ค้นหาสถานีหรือจังหวัด..." autocomplete="off"><button type="submit" aria-label="ค้นหาสถานี">ค้นหา</button></form>
             <div id="search-message" class="search-message" role="status" hidden></div>
+            <button type="button" id="open-layers" class="filter-button" aria-controls="layer-sheet" aria-expanded="false">☰ ชั้นข้อมูล</button>
             <div class="quick-filters" aria-label="ข้อมูลที่ต้องการดู"><button type="button" data-quick="water" class="selected">ระดับน้ำ</button><button type="button" data-quick="risk">จุดเสี่ยง</button><button type="button" data-quick="flood">น้ำท่วม</button><button type="button" data-quick="road">จราจร</button><button type="button" data-quick="camera">กล้อง CCTV</button></div>
           </div>
           <div class="map-top"><div class="map-badge"><span class="pulse"></span><span id="map-status">กำลังโหลดสถานีวัดน้ำ</span></div><button id="recenter" class="map-tool" type="button" aria-label="กลับไปที่รังสิต" title="กลับไปที่รังสิต"><svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M2 12h4m12 0h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg></button></div>
@@ -88,10 +101,15 @@
           <div class="insights-footer"><span>รีเฟรชหน้าจอทุก 2 นาที</span><span id="last-fetch">ยังไม่มีข้อมูล</span></div>
         </aside>
       </div>
-      <nav class="mobile-nav" aria-label="เมนูหลัก"><button type="button" data-nav="map" class="active">⌖<span>แผนที่</span></button><button type="button" data-nav="risk">⚠<span>จุดเสี่ยง</span></button><button type="button" data-nav="flood">△<span>น้ำท่วม</span></button><button type="button" data-nav="road">⇢<span>จราจร</span></button><button type="button" data-nav="camera">▣<span>กล้อง</span></button><button type="button" data-nav="locate">◎<span>ตำแหน่ง</span></button></nav>
+      <nav class="mobile-nav" aria-label="เมนูหลัก"><button type="button" data-nav="map" class="active"><span class="nav-icon" aria-hidden="true">⌖</span><span>แผนที่</span></button><button type="button" data-nav="risk"><span class="nav-icon" aria-hidden="true">⚠<i class="nav-badge" id="nav-risk-badge" hidden></i></span><span>เตือนภัย</span></button><button type="button" data-nav="flood"><span class="nav-icon" aria-hidden="true">△</span><span>น้ำท่วม</span></button><button type="button" data-nav="camera"><span class="nav-icon" aria-hidden="true">▣</span><span>กล้อง</span></button><button type="button" data-nav="road"><span class="nav-icon" aria-hidden="true">⇢</span><span>จราจร</span></button></nav>
       <footer class="footer"><div><strong>รู้ทันน้ำ</strong><span>ต้นแบบแผนที่ข้อมูลน้ำสำหรับประชาชน</span></div><div>ข้อมูล: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener noreferrer">ThaiWater</a> · <a href="https://dds.bangkok.go.th/cctv.php" target="_blank" rel="noopener noreferrer">สำนักการระบายน้ำ กทม.</a> · <a href="https://rangsitcity.go.th/cctvrangsitcity/" target="_blank" rel="noopener noreferrer">เทศบาลนครรังสิต</a> · <a href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">GISTDA</a> · <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTom</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div></footer>
     </main>
   </div>
+  <dialog id="camera-viewer" class="camera-viewer" aria-labelledby="viewer-title">
+    <div class="viewer-head"><div><strong class="viewer-title" id="viewer-title"></strong><small class="viewer-meta"></small></div><button type="button" class="viewer-close" data-viewer-close aria-label="ปิด">✕</button></div>
+    <div class="viewer-body"></div>
+    <div class="viewer-foot"><button type="button" class="link-button" data-viewer-map>ดูตำแหน่งบนแผนที่</button><a data-viewer-source href="#" target="_blank" rel="noopener noreferrer"></a></div>
+  </dialog>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
   <script type="module" src="/js/main.js"></script>
 </body>

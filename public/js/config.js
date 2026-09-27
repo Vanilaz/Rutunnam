@@ -26,10 +26,19 @@ export const STORAGE_CLASSES = Object.freeze({ overflowAbove: 100, highAbove: 70
 export const MOBILE_BREAKPOINT_PX = 721;
 export const GEOLOCATION_OPTIONS = Object.freeze({ enableHighAccuracy: true, timeout: 12 * 1000, maximumAge: MINUTE_MS });
 
-export const STORAGE_KEYS = Object.freeze({ waterCache: "rutan-water-cache", home: "rutan-home" });
+export const STORAGE_KEYS = Object.freeze({ waterCache: "rutan-water-cache", home: "rutan-home", layers: "rutan-layers" });
 export const WATER_API_URL = "/api/water";
 export const CONFIG_API_URL = "/api/config";
 export const ROAD_FLOOD_API_URL = "/api/road-flood";
+export const TRAFFIC_CAMERAS_API_URL = "/api/traffic-cameras";
+export const TRAFFIC_CAMERA_PAGE_SIZE = 12;
+export const THUMBNAIL_REFRESH_MS = 60 * 1000;
+export const TRAFFIC_CAMERA_REFRESH_MS = 15 * 1000;
+export const TRAFFIC_CAMERA_SOURCE = Object.freeze({ url: "https://traffic.longdo.com/", label: "iTIC · Longdo Traffic" });
+
+// hls.js plays live HLS video in browsers without native support (Chrome/Firefox desktop).
+// Pinned and SRI-checked against the npm tarball; loaded only when a video is opened.
+export const HLS_JS_ASSET = Object.freeze({ src: "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js", integrity: "sha384-cciJ0zi8d1uMKC2zJd7jvPY4HQt7W4ByUI/FlMkltvBi31aW61rcpVBhpmW8/NwX" });
 export const THAIWATER_URL = "https://www.thaiwater.net/";
 
 export const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";

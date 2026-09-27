@@ -44,6 +44,23 @@
  * @property {string | null} reportedAt
  */
 
+/**
+ * A traffic camera from /api/traffic-cameras (iTIC / Longdo feed).
+ * @typedef {Object} TrafficCamera
+ * @property {string} id
+ * @property {string} name
+ * @property {string} [org]
+ * @property {number} lat
+ * @property {number} lng
+ * @property {string | null} image  HTTPS still image.
+ * @property {string | null} hls  HTTPS HLS playlist for live video.
+ */
+
+/**
+ * Anything the camera viewer can show.
+ * @typedef {{ id: string, name: string, meta: string, lat: number, lng: number, image: string | null, hls: string | null, refreshMs: number, sourceUrl: string, sourceLabel: string }} ViewerCamera
+ */
+
 /** @typedef {"overflow" | "high" | "normal" | "belowBank" | "low" | "unknown" | "stale"} RiskStatus */
 /** @typedef {{ status: RiskStatus, percent: number | null, margin: number | null }} StationRisk  margin = level - bank (m); positive means over the bank. */
 
