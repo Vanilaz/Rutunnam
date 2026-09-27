@@ -51,7 +51,8 @@ export async function fetchLayerConfig() {
     return {
       flood: { available: data.flood?.available === true, period: data.flood?.period, wmsUrl: data.flood?.wmsUrl },
       traffic: { available: data.traffic?.available === true && Boolean(tileUrl), tileUrl, attribution: data.traffic?.attribution },
-      roadFlood: { available: data.roadFlood?.available === true, url: data.roadFlood?.url }
+      roadFlood: { available: data.roadFlood?.available === true, url: data.roadFlood?.url },
+      version: typeof data.version === "string" ? data.version : undefined
     };
   } catch (_) {
     return NO_OPTIONAL_LAYERS;

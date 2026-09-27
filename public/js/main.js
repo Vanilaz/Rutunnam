@@ -1,5 +1,5 @@
 // Composition root: owns app state and wires modules to the DOM.
-import { CAMERA_SOURCES, DAM_LIST_LIMIT, DAM_REFRESH_MS, DEFAULT_CAMERA_REFRESH_MS, GATE_LIST_LIMIT, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, THUMBNAIL_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
+import { APP_VERSION, THUMBNAIL_TIMEOUT_MS, CAMERA_SOURCES, DAM_LIST_LIMIT, DAM_REFRESH_MS, DEFAULT_CAMERA_REFRESH_MS, GATE_LIST_LIMIT, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, THUMBNAIL_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
 import { fetchDams, fetchLayerConfig, fetchRoadFloods, fetchStations, fetchTrafficCameras, fetchWaterGates, NO_OPTIONAL_LAYERS } from "./api.js";
 import { isLayerWanted, loadCachedStations, loadHome, saveCachedStations, saveHome, saveLayerPref } from "./storage.js";
 import { age, distanceKm, fmtClock, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
@@ -243,8 +243,12 @@ function refreshThumbnails() {
     const card = img.closest(".cam-card");
     const badge = card?.querySelector(".cam-badge");
     const base = img.dataset.thumb ?? "";
-    img.onload = () => { if (badge) { badge.textContent = "สด"; badge.className = "cam-badge is-live"; } };
-    img.onerror = () => { if (badge) { badge.textContent = "ไม่มีสัญญาณ"; badge.className = "cam-badge is-offline"; } };
+    /** @param {string} text @param {string} className */
+    const setBadge = (text, className) => { if (badge) { badge.textContent = text; badge.className = `cam-badge ${className}`; } };
+    // Some camera hosts never answer; do not leave "กำลังโหลด" up forever.
+    const timeout = setTimeout(() => { if (!img.complete || !img.naturalWidth) setBadge("ไม่ตอบสนอง", "is-offline"); }, THUMBNAIL_TIMEOUT_MS);
+    img.onload = () => { clearTimeout(timeout); setBadge("สด", "is-live"); };
+    img.onerror = () => { clearTimeout(timeout); setBadge("ไม่มีสัญญาณ", "is-offline"); };
     img.src = `${base}${base.includes("?") ? "&" : "?"}t=${Date.now()}`;
   });
 }
@@ -338,8 +342,14 @@ const listPanel = createListPanel(byId("tab-content"), {
 });
 
 function renderList() {
-  if (listPanel.render(tabHtml()) && state.tab === "camera") refreshThumbnails();
-  renderSummary();
+  try {
+    if (listPanel.render(tabHtml()) && state.tab === "camera") refreshThumbnails();
+  } catch (error) {
+    // One bad record from an upstream feed must not freeze the whole app.
+    console.error("render failed", state.tab, error);
+    listPanel.render(`<div class="empty"><strong>แสดงข้อมูลส่วนนี้ไม่ได้</strong><p>ข้อมูลจากต้นทางมีรูปแบบที่ไม่คาดคิด ลองรีเฟรชหรือเปิดเมนูอื่น</p></div>`);
+  }
+  try { renderSummary(); } catch (error) { console.error("summary failed", error); }
 }
 
 /**
@@ -376,10 +386,11 @@ function setTab(tab) {
 /** @param {Tab} tab */
 function openSection(tab) {
   closeLayerSheet();
-  setTab(tab);
   document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item instanceof HTMLElement && item.dataset.nav === tab));
+  // Switch screens before rendering, so navigation still works even if a section fails to render.
   if (mobileQuery.matches) setView("panel");
-  else ui.insights.scrollIntoView({ behavior: "smooth", block: "start" });
+  setTab(tab);
+  if (!mobileQuery.matches) ui.insights.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /** @param {boolean} open */
@@ -526,8 +537,27 @@ async function loadFeed(slot, fetcher, layer, note, unit) {
 const loadWaterGates = () => loadFeed(state.gates, fetchWaterGates, waterGatesLayer, ui.gateNote, "แห่ง");
 const loadDams = () => loadFeed(state.dams, fetchDams, damsLayer, ui.damNote, "แห่ง");
 
+const RELOAD_MARKER_KEY = "rutan-reloaded-for";
+
+/**
+ * Old cached JS with a newer deploy breaks features (e.g. new menu items do nothing).
+ * Reload once per server version; the marker stops a reload loop if the cache still wins.
+ * @param {string | undefined} serverVersion
+ * @returns {boolean} true when a reload was started
+ */
+function reloadIfOutdated(serverVersion) {
+  if (!serverVersion || serverVersion === APP_VERSION) return false;
+  try {
+    if (sessionStorage.getItem(RELOAD_MARKER_KEY) === serverVersion) return false;
+    sessionStorage.setItem(RELOAD_MARKER_KEY, serverVersion);
+  } catch (_) { return false; } // Without storage we cannot guard against a loop.
+  location.reload();
+  return true;
+}
+
 async function loadLayerConfig() {
   state.config = await fetchLayerConfig();
+  if (reloadIfOutdated(state.config.version)) return;
   const { flood, traffic } = state.config;
   setLayerAvailability(ui.toggleFlood, ui.floodNote, flood.available, "GISTDA · ภาพดาวเทียมล่าสุด", "ยังไม่ได้ตั้งค่า GISTDA API key");
   setLayerAvailability(ui.toggleTraffic, ui.trafficNote, traffic.available, "สีตามความเร็วรถ · อัปเดตทุก 2 นาที", "ยังไม่ได้ตั้งค่า API key ข้อมูลจราจร");

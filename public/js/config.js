@@ -1,4 +1,8 @@
 // Static configuration shared by every module. No DOM access here.
+
+// Must equal package.json "version" (checked by `npm run build`). The page reloads itself once
+// when /api/config reports a different version, so a phone never runs old JS against new HTML.
+export const APP_VERSION = "0.5.1";
 /** @typedef {import("./types.js").Camera} Camera */
 
 /** @type {import("./types.js").LatLngTuple} */
@@ -42,6 +46,7 @@ export const DAM_STALE_MS = 3 * 24 * HOUR_MS;
 export const DAM_CLASSES = Object.freeze({ overAbove: 100, highAbove: 80, lowAtOrBelow: 50, criticalAtOrBelow: 30 });
 export const TRAFFIC_CAMERA_PAGE_SIZE = 12;
 export const THUMBNAIL_REFRESH_MS = 60 * 1000;
+export const THUMBNAIL_TIMEOUT_MS = 20 * 1000;
 export const TRAFFIC_CAMERA_REFRESH_MS = 15 * 1000;
 export const TRAFFIC_CAMERA_SOURCE = Object.freeze({ url: "https://traffic.longdo.com/", label: "iTIC · Longdo Traffic" });
 

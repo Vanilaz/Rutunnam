@@ -164,3 +164,8 @@ test("traffic camera API serves the last good list when the feed is down", async
   assert.equal(down.body.stale, true);
   assert.equal(down.body.cameras.length, 1);
 });
+
+test("public config reports the build version so stale clients can reload", () => {
+  const { version } = require("../package.json");
+  assert.equal(publicConfig({}).version, version);
+});
