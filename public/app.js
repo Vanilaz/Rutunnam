@@ -1,8 +1,7 @@
 (() => {
   "use strict";
   const RANGSIT = [13.986, 100.616];
-  // Six coordinates and periodically refreshed images are published by BMA DDS.
-  // Directory pins have approximate coverage coordinates and are labeled separately.
+  // BMA DDS publishes six coordinates. Rangsit camera uses an approximate area pin.
   const cameraSources = [
     { id: "dds1", name: "บางเขนใหม่", area: "คลอง · กรุงเทพมหานคร", lat: 13.8712025, lng: 100.6009522, url: "https://dds.bangkok.go.th/cctv1.php", image: "https://dds.bangkok.go.th/cctv-image/cctv1.jpg" },
     { id: "dds2", name: "สะพานพระปิ่นเกล้า", area: "แม่น้ำเจ้าพระยา", lat: 13.7638088, lng: 100.4880244, url: "https://dds.bangkok.go.th/cctv2.php", image: "https://dds.bangkok.go.th/cctv-image/cctv2.jpg" },
@@ -10,11 +9,12 @@
     { id: "dds4", name: "คลองสวนแดน 1", area: "คลอง · นครปฐม", lat: 13.8504178, lng: 100.2143995, url: "https://dds.bangkok.go.th/cctv4.php", image: "https://dds.bangkok.go.th/cctv-image/cctv4.jpg" },
     { id: "dds5", name: "คลองชักพระ", area: "คลอง · กรุงเทพมหานคร", lat: 13.7626065, lng: 100.4419398, url: "https://dds.bangkok.go.th/cctv5.php", image: "https://dds.bangkok.go.th/cctv-image/cctv5.jpg" },
     { id: "dds6", name: "คลองทวีวัฒนา", area: "คลอง · กรุงเทพมหานคร", lat: 13.7471152, lng: 100.3203025, url: "https://dds.bangkok.go.th/cctv6.php", image: "https://dds.bangkok.go.th/cctv-image/cctv6.jpg" },
-    { id: "rangsit", name: "ศูนย์กล้องเทศบาลนครรังสิต", area: "รังสิต ปทุมธานี", lat: 13.986, lng: 100.616, url: "https://cdp.rangsitcity.go.th/", note: "เปิดรายชื่อและภาพกล้องที่เว็บไซต์เทศบาล", directory: true },
+    { id: "rangsit-water", name: "ท่าน้ำสะพานแดง · ระดับน้ำรังสิต", area: "คลองรังสิตประยูรศักดิ์ · พิกัดพื้นที่โดยประมาณ", lat: 13.986, lng: 100.616, url: "https://rangsitcity.go.th/cctvrangsitcity/", image: "https://www.ipcamlive.com/player/snapshot.php?alias=6ab688b9f0f7d", refreshMs: 120000, source: "เทศบาลนครรังสิต" },
+    { id: "rangsit", name: "กล้องจราจรเทศบาลนครรังสิต", area: "รังสิต ปทุมธานี", lat: 13.982, lng: 100.621, url: "https://rangsitcity.go.th/cctvrangsitcity/", note: "มีกล้องจราจรหลายจุดบนเว็บไซต์เทศบาล ลิงก์บางกล้องเป็น HTTP จึงเปิดภาพตรงบนเว็บ HTTPS ไม่ได้", directory: true },
     { id: "rid", name: "ศูนย์กล้องลุ่มน้ำเจ้าพระยา", area: "ลุ่มน้ำเจ้าพระยา", lat: 14.35, lng: 100.45, url: "https://wmsc.rid.go.th/cctv2/", note: "เว็บไซต์กรมชลประทานระบุว่ารองรับ Firefox", directory: true }
   ];
   const el = (id) => document.getElementById(id);
-  const state = { map: null, layer: null, cameraLayer: null, cameraMarkers: new Map(), cameraTimer: null, stations: [], you: null, home: null, homeMarker: null, youMarker: null, fetchedAt: null, loading: false, tab: "water", placingHome: false, error: null };
+  const state = { map: null, baseLayer: null, vectorLayer: null, layer: null, cameraLayer: null, cameraMarkers: new Map(), cameraTimer: null, stations: [], you: null, home: null, homeMarker: null, youMarker: null, fetchedAt: null, loading: false, tab: "water", placingHome: false, error: null };
   try {
     const cached = JSON.parse(localStorage.getItem("rutan-water-cache") || "null");
     if (cached && Array.isArray(cached.stations) && cached.stations.length && Date.now() - new Date(cached.fetchedAt).getTime() < 24 * 60 * 60 * 1000) {
@@ -62,7 +62,8 @@
   function initMap() {
     if (!window.L) { el("map-fallback").hidden = false; return; }
     state.map = L.map("map", { zoomControl: false, preferCanvas: true }).setView(center(), 11);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(state.map);
+    state.baseLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(state.map);
+    setMapStyle(el("map-style").value);
     L.control.zoom({ position: "bottomright" }).addTo(state.map);
     state.layer = L.layerGroup().addTo(state.map);
     state.cameraLayer = L.layerGroup().addTo(state.map);
@@ -79,6 +80,24 @@
       updateLocation(); renderStations(); renderList();
     });
     if (state.home) { el("home-button-label").textContent = "ย้ายหมุดบ้าน"; updateLocation(); }
+  }
+
+  function setMapStyle(style) {
+    if (!state.map) return;
+    if (style === "classic" || !window.maplibregl || !L.maplibreGL || !maplibregl.supported()) {
+      if (state.vectorLayer) { state.map.removeLayer(state.vectorLayer); state.vectorLayer = null; }
+      if (!state.map.hasLayer(state.baseLayer)) state.baseLayer.addTo(state.map);
+      el("map-style").value = "classic";
+      return;
+    }
+    if (state.vectorLayer) return;
+    try {
+      const vector = L.maplibreGL({ style: "https://tiles.openfreemap.org/styles/liberty", attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> · <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(state.map);
+      state.vectorLayer = vector;
+      const gl = vector.getMaplibreMap();
+      gl.once("load", () => { if (state.vectorLayer === vector && state.map.hasLayer(state.baseLayer)) state.map.removeLayer(state.baseLayer); });
+      gl.on("error", () => { if (state.vectorLayer === vector && !gl.loaded()) setMapStyle("classic"); });
+    } catch (_) { setMapStyle("classic"); }
   }
 
   function updateLocation() {
@@ -113,9 +132,9 @@
     if (!el("toggle-camera").checked) return;
     for (const camera of cameraSources) {
       const cameraIcon = L.divIcon({ className: "", html: `<div class="camera-pin${camera.directory ? " directory" : ""}"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2"/></svg></div>`, iconSize: [32, 32], iconAnchor: [16, 16] });
-      const preview = camera.image ? `<div class="camera-preview"><img alt="ภาพกล้อง ${escape(camera.name)}" loading="lazy"><span class="camera-error" hidden>ภาพจากต้นทางไม่พร้อมใช้งาน</span></div><small>ภาพจากต้นทางอัปเดตทุก 10 วินาทีเมื่อเปิดดู</small>` : `<p>${escape(camera.note)}<br><small>หมุดนี้แทนพื้นที่ของศูนย์กล้อง ไม่ใช่พิกัดกล้องรายตัว</small></p>`;
+      const preview = camera.image ? `<div class="camera-preview"><img alt="ภาพกล้อง ${escape(camera.name)}" loading="lazy"><span class="camera-error" hidden>ภาพจากต้นทางไม่พร้อมใช้งาน</span></div><small>${camera.refreshMs ? "ภาพตัวอย่างต้นทางอัปเดตราวทุก 2 นาที · หมุดเป็นพิกัดพื้นที่โดยประมาณ" : "ภาพจากต้นทางอัปเดตทุก 10 วินาทีเมื่อเปิดดู"}</small>` : `<p>${escape(camera.note)}<br><small>หมุดนี้แทนพื้นที่ของศูนย์กล้อง ไม่ใช่พิกัดกล้องรายตัว</small></p>`;
       const marker = L.marker([camera.lat, camera.lng], { icon: cameraIcon, zIndexOffset: 300 })
-        .bindPopup(`<div class="camera-popup"><strong>${escape(camera.name)}</strong><small>${escape(camera.area)} · ${camera.directory ? "ศูนย์กล้อง" : "กล้องดูระดับน้ำ กทม."}</small>${preview}<a href="${camera.url}" target="_blank" rel="noopener noreferrer">เปิดเว็บไซต์ต้นทาง ↗</a></div>`, { maxWidth: 340, minWidth: 260, offset: [0, 24], autoPanPaddingTopLeft: [25, 85], autoPanPaddingBottomRight: [25, 25] })
+        .bindPopup(`<div class="camera-popup"><strong>${escape(camera.name)}</strong><small>${escape(camera.area)} · ${camera.directory ? "ศูนย์กล้อง" : escape(camera.source || "กล้องดูระดับน้ำ กทม.")}</small>${preview}<a href="${camera.url}" target="_blank" rel="noopener noreferrer">เปิดเว็บไซต์ต้นทาง ↗</a></div>`, { maxWidth: 340, minWidth: 260, offset: [0, 24], autoPanPaddingTopLeft: [25, 85], autoPanPaddingBottomRight: [25, 25] })
         .addTo(state.cameraLayer);
       state.cameraMarkers.set(camera.id, marker);
       if (camera.image) marker.on("popupopen", (event) => {
@@ -125,10 +144,10 @@
         if (!img) return;
         img.onerror = () => { img.hidden = true; if (error) error.hidden = false; };
         img.onload = () => { img.hidden = false; if (error) error.hidden = true; };
-        const refresh = () => { if (!document.hidden) img.src = `${camera.image}?t=${Date.now()}`; };
+        const refresh = () => { if (!document.hidden) img.src = `${camera.image}${camera.image.includes("?") ? "&" : "?"}t=${Date.now()}`; };
         refresh();
         if (state.cameraTimer) clearInterval(state.cameraTimer);
-        state.cameraTimer = setInterval(refresh, 10000);
+        state.cameraTimer = setInterval(refresh, camera.refreshMs || 10000);
       });
       marker.on("popupclose", () => { if (state.cameraTimer) clearInterval(state.cameraTimer); state.cameraTimer = null; });
     }
@@ -136,12 +155,16 @@
 
   function renderList() {
     const content = el("tab-content");
+    if (state.tab === "road") {
+      content.innerHTML = `<div class="content-heading"><strong>ตรวจเส้นทางก่อนออกเดินทาง</strong></div><p class="subtle">ข้อมูลจราจรกับระดับน้ำไม่สามารถยืนยันว่ารถแต่ละคันผ่านได้ ตรวจประกาศปิดถนนและสภาพหน้างานก่อนเดินทาง</p><div class="info-card"><strong>ทางหลวง · จุดที่สัญจรผ่านไม่ได้</strong><p>กรมทางหลวงรายงานสายทางที่ได้รับผลกระทบจากน้ำท่วม พร้อมจุดที่ผ่านไม่ได้</p><a class="link-button" href="https://hdms.doh.go.th/" target="_blank" rel="noopener noreferrer">ตรวจแผนที่ภัยพิบัติทางหลวง ↗</a></div><div class="info-card"><strong>กทม. · น้ำท่วมถนน</strong><p>ดูจุดวัดระดับน้ำท่วมถนนและเวลาอัปเดตของ กทม.</p><a class="link-button" href="https://floodbangkok.bangkok.go.th/road-flood" target="_blank" rel="noopener noreferrer">ตรวจถนนน้ำท่วม กทม. ↗</a></div><div class="info-card"><strong>สภาพจราจรทางหลวง</strong><p>ภาพกล้องและการจราจรจากกรมทางหลวง</p><a class="link-button" href="https://highwaytraffic.go.th/" target="_blank" rel="noopener noreferrer">ดูจราจร ↗</a></div><p class="subtle">สายด่วนกรมทางหลวง 1586 สำหรับสอบถามสภาพเส้นทางตลอด 24 ชั่วโมง</p>`;
+      return;
+    }
     if (state.tab === "flood") {
       content.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5m0 3h.01"/></svg><strong>ขอบเขตน้ำท่วมต้องตรวจจากต้นทาง</strong><p>แผนที่นี้ยังไม่ได้รับชั้นข้อมูลพื้นที่ท่วมที่เชื่อมต่อได้โดยตรง จึงไม่วาดพื้นที่สมมติบนแผนที่</p></div><div class="info-card"><strong>GISTDA · แผนที่น้ำท่วมจากดาวเทียม</strong><p>ดูขอบเขตที่ตรวจพบ พร้อมวันที่ของภาพแต่ละชุด ภาพดาวเทียมอาจไม่ใช่สภาพ ณ นาทีนี้</p><a class="link-button" href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">เปิดแผนที่ GISTDA ↗</a></div><div class="info-card"><strong>กทม. · น้ำท่วมถนน</strong><p>จุดตรวจวัดระดับน้ำบนถนนในเขตกรุงเทพมหานคร</p><a class="link-button" href="https://floodbangkok.bangkok.go.th/road-flood" target="_blank" rel="noopener noreferrer">เปิดข้อมูล กทม. ↗</a></div>`;
       return;
     }
     if (state.tab === "camera") {
-      content.innerHTML = `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>6 กล้อง · 2 ศูนย์</span></div><p class="subtle">กล้อง 6 จุดของสำนักการระบายน้ำ กทม. กดเพื่อดูภาพอัปเดตในแผนที่ ส่วนหมุดศูนย์กล้องเปิดเว็บไซต์ต้นทาง</p>` + cameraSources.map((camera) => `<div class="info-card"><strong>${escape(camera.name)}</strong><p>${escape(camera.area)}${camera.directory ? ` · ${escape(camera.note)}` : " · ภาพจากกล้อง กทม."}</p>${camera.directory ? `<a class="link-button" href="${camera.url}" target="_blank" rel="noopener noreferrer">เปิดศูนย์กล้อง ↗</a>` : `<button class="link-button camera-open" data-camera="${camera.id}" type="button">ดูภาพบนแผนที่</button>`}</div>`).join("") + `<p class="subtle">ภาพเป็นชุด JPEG ที่ต้นทางอัปเดตเป็นระยะ ไม่ใช่วิดีโอสตรีม หากภาพไม่ขึ้นให้เปิดเว็บไซต์ต้นทาง</p>`;
+      content.innerHTML = `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>7 กล้อง · 2 ศูนย์</span></div><p class="subtle">กล้อง กทม. 6 จุด และกล้องระดับน้ำสะพานแดงของเทศบาลนครรังสิต กดเพื่อดูภาพบนแผนที่</p>` + cameraSources.map((camera) => `<div class="info-card"><strong>${escape(camera.name)}</strong><p>${escape(camera.area)}${camera.directory ? ` · ${escape(camera.note)}` : ` · ภาพจาก${escape(camera.source || "กล้อง กทม.")}`}</p>${camera.directory ? `<a class="link-button" href="${camera.url}" target="_blank" rel="noopener noreferrer">เปิดศูนย์กล้อง ↗</a>` : `<button class="link-button camera-open" data-camera="${camera.id}" type="button">ดูภาพบนแผนที่</button>`}</div>`).join("") + `<p class="subtle">ภาพเป็นชุด JPEG ที่ต้นทางอัปเดตเป็นระยะ ไม่ใช่วิดีโอสตรีม หากภาพไม่ขึ้นให้เปิดเว็บไซต์ต้นทาง</p>`;
       content.querySelectorAll(".camera-open").forEach((button) => button.addEventListener("click", () => {
         const camera = cameraSources.find((item) => item.id === button.dataset.camera);
         if (!camera || !state.map) return;
@@ -196,6 +219,7 @@
   }
 
   el("refresh").addEventListener("click", loadStations);
+  el("map-style").addEventListener("change", (event) => setMapStyle(event.target.value));
   el("recenter").addEventListener("click", () => state.map?.flyTo(RANGSIT, 11));
   el("home-button").addEventListener("click", () => {
     if (!state.map) { el("location-message").textContent = "แผนที่ยังไม่พร้อมใช้งาน"; return; }
