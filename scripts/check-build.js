@@ -52,6 +52,11 @@ if (fs.existsSync("public/index.html")) {
   for (const url of preloaded) if (!shipped.has(url)) errors.push(`index.html: remove modulepreload ${url} (not a runtime module)`);
 }
 
+// The client reloads itself when its APP_VERSION differs from the server's, so they must match.
+const appVersion = /export const APP_VERSION = "([^"]+)"/.exec(fs.existsSync(path.join(MODULE_DIR, "config.js")) ? fs.readFileSync(path.join(MODULE_DIR, "config.js"), "utf8") : "")?.[1];
+const packageVersion = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+if (appVersion !== packageVersion) errors.push(`public/js/config.js APP_VERSION (${appVersion}) must equal package.json version (${packageVersion})`);
+
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);

@@ -106,6 +106,7 @@
  * @property {{ available: boolean, period?: string, wmsUrl?: string }} flood
  * @property {{ available: boolean, tileUrl?: string, attribution?: string }} traffic
  * @property {{ available: boolean, url?: string }} roadFlood
+ * @property {string} [version]  Server build version (package.json).
  */
 
 /** @typedef {[number, number]} LatLngTuple */

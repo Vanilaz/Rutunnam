@@ -10,7 +10,7 @@
 | `GET /api/water-gates` | ThaiWater `watergate_load` | `s-maxage=300, stale-while-revalidate=600` | ใช้ข้อมูลสำเร็จล่าสุด ≤ 6 ชม. (`stale: true`) ถ้าไม่มีคืน `502` |
 | `GET /api/dams` | ThaiWater `analyst/dam` | `s-maxage=1800, stale-while-revalidate=86400` | ใช้ข้อมูลสำเร็จล่าสุด ≤ 2 วัน (`stale: true`) ถ้าไม่มีคืน `502` |
 | `GET /api/flood-wms` | GISTDA flood WMS | `s-maxage=3600, stale-while-revalidate=86400` | `502` (ไม่ cache) |
-| `GET /api/config` | environment variables | `s-maxage=300` | – |
+| `GET /api/config` | environment variables | `s-maxage=60` | – |
 | `GET /api/flood` | – (ข้อมูลอ้างอิงแบบคงที่) | `s-maxage=300` | – |
 
 "ข้อมูลสำเร็จล่าสุด" คือข้อมูลที่เก็บไว้ในหน่วยความจำของ function instance ที่ยังทำงานอยู่ ไม่ใช่ฐานข้อมูล จึงหายเมื่อ instance ถูก recycle
@@ -163,9 +163,12 @@ Proxy ของ GISTDA WMS `GetMap` สำหรับ Leaflet `L.tileLayer.wms`
 {
   "flood": { "available": true, "period": "7days", "wmsUrl": "/api/flood-wms" },
   "traffic": { "available": true, "tileUrl": "https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=…&tileSize=256", "attribution": "Traffic © TomTom" },
-  "roadFlood": { "available": true, "url": "/api/road-flood" }
+  "roadFlood": { "available": true, "url": "/api/road-flood" },
+  "version": "0.5.1"
 }
 ```
+
+`version` คือเวอร์ชันจาก `package.json` ถ้าไม่ตรงกับ `APP_VERSION` ในหน้าเว็บ หน้าเว็บจะโหลดใหม่เองหนึ่งครั้ง (มี marker ใน `sessionStorage` กันการวนโหลดซ้ำ)
 
 `traffic.tileUrl` มี key ของ TomTom อยู่ด้วย ซึ่งเป็นแบบนี้โดยตั้งใจ ดูหัวข้อ "Environment variables" ใน README
 

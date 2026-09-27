@@ -309,3 +309,49 @@ test.describe("water gates and dams", () => {
     await expect(page.locator("#gate-note")).toHaveText("ThaiWater · รูปแบบข้อมูลยังไม่รองรับ");
   });
 });
+
+test.describe("deploy safety", () => {
+  // Count HTML document requests: the reload can happen before the first "load" event fires.
+  /** @param {string[]} requests */
+  const documentLoads = (requests) => requests.filter((url) => new URL(url).pathname === "/").length;
+
+  test("an outdated page reloads itself once, then stops", async ({ page, net }) => {
+    net.config(json({ flood: { available: false }, traffic: { available: false }, roadFlood: { available: true }, version: "99.0.0" }));
+    await page.goto("/");
+    await expect.poll(() => documentLoads(net.requests), { timeout: 10000 }).toBe(2);
+    await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
+    await page.waitForTimeout(1500);
+    expect(documentLoads(net.requests)).toBe(2);
+  });
+
+  test("a matching version does not reload", async ({ page, net }) => {
+    const { version } = require("../../package.json");
+    net.config(json({ flood: { available: false }, traffic: { available: false }, roadFlood: { available: true }, version }));
+    await page.goto("/");
+    await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
+    await page.waitForTimeout(1500);
+    expect(documentLoads(net.requests)).toBe(1);
+  });
+
+  test("a section that fails to render shows a message and does not block the menu", async ({ page, net }) => {
+    // Force a genuine render exception: make toFixed throw for one sentinel reservoir percentage,
+    // which the gates tab formats with percent.toFixed(0).
+    const SENTINEL = 12345.678;
+    await page.addInitScript((sentinel) => {
+      const original = Number.prototype.toFixed;
+      /** @param {number | undefined} digits */
+      Number.prototype.toFixed = function (digits) {
+        if (Number(this) === sentinel) throw new Error("forced render failure");
+        return original.call(this, digits);
+      };
+    }, SENTINEL);
+    net.dams(json({ dams: [{ id: "x", name: "เขื่อนแปลก", size: "large", lat: 15, lng: 100, percent: SENTINEL, date: "2026-09-27" }], status: "ok" }));
+    await page.goto("/");
+    await openTab(page, "gates");
+    await expect(page.locator("#tab-content")).toContainText("แสดงข้อมูลส่วนนี้ไม่ได้");
+    await openTab(page, "camera");
+    await expect(page.locator('[data-viewer^="water:"]').first()).toBeVisible();
+    // The failure was contained to that one section; the rest of the app still works.
+    expect(net.pageErrors.filter((message) => !message.includes("render failed") && !message.includes("forced render failure"))).toEqual([]);
+  });
+});

@@ -126,7 +126,7 @@ export function riskTabHtml({ items, total, nearby, hasStations, riskOnly, neare
  */
 function cameraCardHtml({ key, name, caption, image, video }) {
   const thumb = image
-    ? `<span class="cam-thumb"><img data-thumb="${esc(image)}" alt="" loading="lazy"></span>`
+    ? `<span class="cam-thumb"><img data-thumb="${esc(image)}" alt=""></span>`
     : `<span class="cam-thumb cam-video" aria-hidden="true">▶</span>`;
   const badge = image ? `<span class="cam-badge">กำลังโหลด</span>` : `<span class="cam-badge is-live">วิดีโอสด</span>`;
   return `<button type="button" class="cam-card" data-viewer="${esc(key)}" aria-label="ดูกล้อง ${esc(name)}">${thumb}${badge}${video && image ? `<span class="cam-play" aria-hidden="true">▶</span>` : ""}<span class="cam-caption"><strong>${esc(name)}</strong><small>${esc(caption)}</small></span></button>`;

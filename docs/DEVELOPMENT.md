@@ -113,6 +113,10 @@ Helper สำหรับเขียน test ที่ใช้ได้ทั�
 3. แก้ URL และ `integrity` ใน `public/js/config.js`
 4. CI จะยืนยันว่า hash ตรงกับไฟล์บน CDN
 
+## ขึ้นเวอร์ชัน
+
+แก้ `version` ใน `package.json` (`npm version <x.y.z> --no-git-tag-version`) และ `APP_VERSION` ใน `public/js/config.js` ให้ตรงกัน แล้วเพิ่มหัวข้อใหม่ใน `CHANGELOG.md` ถ้าสองค่าไม่ตรงกัน `npm run build` จะล้ม
+
 ## เกณฑ์ก่อน merge
 
 - `npm run check` และ `npm run test:e2e` ผ่าน

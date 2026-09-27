@@ -110,6 +110,10 @@ GitHub Actions (`.github/workflows/ci.yml`) รัน typecheck, unit test แ�
   - `nosniff` และ `Referrer-Policy`
   - CSP ในโหมด **Report-Only** script โหลดได้จาก cdnjs, unpkg และ jsdelivr เท่านั้น ส่วนรูปและวิดีโออนุญาตทุกโดเมน `https:` เพราะภาพกล้องมาจากหลายหน่วยงาน
   - เมื่อเปิด DevTools บน production แล้วไม่เห็น CSP violation ค่อยเปลี่ยน key เป็น `Content-Security-Policy` เพื่อบังคับใช้จริง
+- **การ deploy เวอร์ชันใหม่:**
+  - ไฟล์ HTML/JS/CSS ตั้ง `Cache-Control: no-cache` ให้เบราว์เซอร์ตรวจกับ server ทุกครั้ง (ตอบกลับเป็น 304 ถ้าไม่เปลี่ยน)
+  - หน้าเว็บเทียบ `APP_VERSION` กับ `version` ใน `/api/config` ถ้าไม่ตรงจะโหลดใหม่เองหนึ่งครั้ง
+  - ทุกครั้งที่ขึ้นเวอร์ชัน ต้องแก้ทั้ง `package.json` และ `APP_VERSION` ใน `public/js/config.js` ให้ตรงกัน (`npm run build` ตรวจให้)
 - **Library จาก CDN:** MapLibre 5.24.0 และ hls.js 1.7.3 ล็อกเวอร์ชันและตรวจ SRI ทั้งคู่โหลดเฉพาะเมื่อจำเป็น ถ้า Leaflet โหลดไม่ได้ รายการสถานียังใช้งานได้
 - **Log:** ความผิดพลาดของต้นทางถูกบันทึกเป็น JSON ดูได้ใน Vercel Runtime Logs เช่น `water_upstream_failed`, `flood_wms_failed`, `road_flood_unrecognized` และ `traffic_cameras_upstream_failed` log ของ GISTDA ตัด key ออกแล้ว
 - **ความเร็ว:**
