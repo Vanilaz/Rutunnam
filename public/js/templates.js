@@ -145,13 +145,13 @@ export function cameraTabHtml({ water, directories, traffic, trafficTotal, traff
   if (trafficError) trafficHtml = `<div class="cache-warning">${esc(trafficError)}</div>`;
   else if (traffic === null) trafficHtml = `<p class="subtle">กำลังโหลดรายชื่อกล้องจราจร...</p>`;
   else if (!traffic.length) trafficHtml = `<p class="subtle">ยังไม่มีกล้องจราจรที่ส่งภาพได้จากฟีดต้นทาง</p>`;
-  else trafficHtml = `<div class="cam-grid">${traffic.map(({ camera, distance }) => cameraCardHtml({ key: `traffic:${camera.id}`, name: camera.name, caption: `${camera.org || "กล้องจราจร"} · ${distance.toFixed(1)} km`, image: camera.image, video: Boolean(camera.hls) })).join("")}</div>`
+  else trafficHtml = `<div class="cam-grid traffic-grid">${traffic.map(({ camera, distance }) => cameraCardHtml({ key: `traffic:${camera.id}`, name: camera.name, caption: `${camera.org || "กล้องจราจร"} · ${distance.toFixed(1)} km`, image: camera.image, video: Boolean(camera.hls) })).join("")}</div>`
     + (hasMore ? `<button type="button" class="link-button more-button" data-action="more-traffic-cameras">แสดงกล้องเพิ่ม</button>` : "");
   const links = directories.map((camera) => infoCard(esc(camera.name), `${esc(camera.area)} · ${esc(camera.note)}`, external(camera.url, "เปิดศูนย์กล้อง ↗"))).join("");
   const options = provinces.map((province) => `<option value="${esc(province)}"${selectedProvince === province ? " selected" : ""}>${esc(province)}</option>`).join("");
   return `<div class="camera-intro"><span class="section-kicker">CCTV EXPLORER</span><h3>มองเห็นสถานการณ์จริง</h3><p>เลือกกล้องดูน้ำหรือกล้องถนน เปิดภาพและดูตำแหน่งได้ทันที</p><div class="camera-stat"><strong>${water.length}</strong><span>กล้องดูน้ำ</span><strong>${trafficTotal}</strong><span>กล้องถนน · ${provinceTotal || "หลาย"} จังหวัด</span></div></div>`
     + `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${water.length} กล้อง</span></div><div class="cam-grid">${waterCards}</div>`
-    + `<div class="content-heading"><strong>กล้องบนถนน</strong><span>${selectedProvince ? `${filteredTotal} กล้อง` : `${trafficTotal} กล้องทั่วประเทศ`}</span></div>`
+    + `<div class="content-heading"><strong>กล้องบนถนน</strong><span>${selectedProvince ? `${filteredTotal} จุด` : `${trafficTotal} จุดทั่วประเทศ`}</span></div>`
     + `<label class="camera-filter-label" for="camera-province">เลือกจังหวัด</label><select id="camera-province" class="camera-province"><option value="">ทุกจังหวัดที่มีข้อมูล</option>${options}</select><p class="camera-coverage">${selectedProvince ? `กำลังดูกล้องใน${esc(selectedProvince)}` : `ฟีดเผยแพร่ภาพจาก ${provinceTotal || "หลาย"} จังหวัด`} · รายการกล้องเปลี่ยนตามต้นทาง</p>${trafficHtml}`
     + `<p class="subtle">กล้องถนนจาก iTIC / Longdo ภาพบางตัวอาจไม่พร้อม ข้อมูลที่ไม่มีสัญญาณจะแสดงสถานะชัดเจน</p>`
     + `<div class="content-heading"><strong>ศูนย์กล้องท้องถิ่นและหน่วยงานน้ำ</strong></div>${links}`;

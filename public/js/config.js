@@ -2,7 +2,7 @@
 
 // Must equal package.json "version" (checked by `npm run build`). The page reloads itself once
 // when /api/config reports a different version, so a phone never runs old JS against new HTML.
-export const APP_VERSION = "0.6.0";
+export const APP_VERSION = "0.6.1";
 /** @typedef {import("./types.js").Camera} Camera */
 
 /** @type {import("./types.js").LatLngTuple} */

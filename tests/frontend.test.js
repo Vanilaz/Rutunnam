@@ -74,7 +74,7 @@ test("camera tab renders a thumbnail card per camera and escapes names", async (
   assert.equal((html.match(/data-viewer="water:/g) || []).length, water.length);
   assert.equal((html.match(/data-viewer="traffic:/g) || []).length, 2);
   assert.ok(html.includes('data-thumb="https://cam.example/a.jpg"'));
-  assert.ok(html.includes("150 กล้องทั่วประเทศ"));
+  assert.ok(html.includes("150 จุดทั่วประเทศ"));
   assert.ok(html.includes('data-action="more-traffic-cameras"'));
   assert.ok(html.includes('id="camera-province"'));
   assert.ok(!html.includes("<b>แยก</b>"));
