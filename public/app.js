@@ -66,6 +66,8 @@
     L.control.zoom({ position: "bottomright" }).addTo(state.map);
     state.layer = L.layerGroup().addTo(state.map);
     state.cameraLayer = L.layerGroup().addTo(state.map);
+    state.map.on("popupopen", () => document.querySelector(".map-panel").classList.add("showing-popup"));
+    state.map.on("popupclose", () => document.querySelector(".map-panel").classList.remove("showing-popup"));
     renderCameras();
     state.map.on("click", ({ latlng }) => {
       if (!state.placingHome) return;
@@ -113,7 +115,7 @@
       const cameraIcon = L.divIcon({ className: "", html: `<div class="camera-pin${camera.directory ? " directory" : ""}"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2"/></svg></div>`, iconSize: [32, 32], iconAnchor: [16, 16] });
       const preview = camera.image ? `<div class="camera-preview"><img alt="ภาพกล้อง ${escape(camera.name)}" loading="lazy"><span class="camera-error" hidden>ภาพจากต้นทางไม่พร้อมใช้งาน</span></div><small>ภาพจากต้นทางอัปเดตทุก 10 วินาทีเมื่อเปิดดู</small>` : `<p>${escape(camera.note)}<br><small>หมุดนี้แทนพื้นที่ของศูนย์กล้อง ไม่ใช่พิกัดกล้องรายตัว</small></p>`;
       const marker = L.marker([camera.lat, camera.lng], { icon: cameraIcon, zIndexOffset: 300 })
-        .bindPopup(`<div class="camera-popup"><strong>${escape(camera.name)}</strong><small>${escape(camera.area)} · ${camera.directory ? "ศูนย์กล้อง" : "กล้องดูระดับน้ำ กทม."}</small>${preview}<a href="${camera.url}" target="_blank" rel="noopener noreferrer">เปิดเว็บไซต์ต้นทาง ↗</a></div>`, { maxWidth: 340, minWidth: 260 })
+        .bindPopup(`<div class="camera-popup"><strong>${escape(camera.name)}</strong><small>${escape(camera.area)} · ${camera.directory ? "ศูนย์กล้อง" : "กล้องดูระดับน้ำ กทม."}</small>${preview}<a href="${camera.url}" target="_blank" rel="noopener noreferrer">เปิดเว็บไซต์ต้นทาง ↗</a></div>`, { maxWidth: 340, minWidth: 260, autoPanPaddingTopLeft: [25, 85], autoPanPaddingBottomRight: [25, 25] })
         .addTo(state.cameraLayer);
       state.cameraMarkers.set(camera.id, marker);
       if (camera.image) marker.on("popupopen", (event) => {
