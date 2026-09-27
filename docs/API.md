@@ -7,6 +7,8 @@
 | `GET /api/water` | ThaiWater `waterlevel_load` | `s-maxage=60, stale-while-revalidate=60` | ใช้ข้อมูลสำเร็จล่าสุด ≤ 6 ชม. (`stale: true`) ถ้าไม่มีคืน `502` |
 | `GET /api/road-flood` | ThaiWater `flood_road` | `s-maxage=120, stale-while-revalidate=300` | `502` |
 | `GET /api/traffic-cameras` | iTIC / Longdo camera feed | `s-maxage=1800, stale-while-revalidate=86400` | ใช้ข้อมูลสำเร็จล่าสุด ≤ 24 ชม. (`stale: true`) ถ้าไม่มีคืน `502` |
+| `GET /api/water-gates` | ThaiWater `watergate_load` | `s-maxage=300, stale-while-revalidate=600` | ใช้ข้อมูลสำเร็จล่าสุด ≤ 6 ชม. (`stale: true`) ถ้าไม่มีคืน `502` |
+| `GET /api/dams` | ThaiWater `analyst/dam` | `s-maxage=1800, stale-while-revalidate=86400` | ใช้ข้อมูลสำเร็จล่าสุด ≤ 2 วัน (`stale: true`) ถ้าไม่มีคืน `502` |
 | `GET /api/flood-wms` | GISTDA flood WMS | `s-maxage=3600, stale-while-revalidate=86400` | `502` (ไม่ cache) |
 | `GET /api/config` | environment variables | `s-maxage=300` | – |
 | `GET /api/flood` | – (ข้อมูลอ้างอิงแบบคงที่) | `s-maxage=300` | – |
@@ -87,6 +89,50 @@
 - `image` คือ URL ภาพนิ่ง HTTPS ส่วน `hls` คือ playlist วิดีโอสด เฉพาะจาก relay ที่เปิด CORS (`camera1.iticfoundation.org`) กล้องแต่ละตัวต้องมีอย่างน้อยหนึ่งอย่าง
 - URL ที่เป็นค่าตัวอย่าง หรือเป็นกล้องที่รู้ว่าไม่มีสัญญาณ จะถูกตัดตาม `DEAD_IMAGE_PATTERNS` ใน `lib/traffic-cameras.js`
 - log ที่เกี่ยวข้อง: `traffic_cameras_unrecognized`, `traffic_cameras_upstream_failed`
+
+## `GET /api/water-gates`
+
+ประตูระบายน้ำและสถานีสูบน้ำ
+
+```json
+{
+  "gates": [
+    { "id": "55", "name": "ปตร.หันตรา", "province": "พระนครศรีอยุธยา", "agency": "สสน.", "lat": 14.35, "lng": 100.61,
+      "upstream": 3.72, "downstream": 2.79, "pumpsOn": 2, "gatesOpen": 1, "measuredAt": "2026-09-27T04:10:00.000Z" }
+  ],
+  "status": "ok",
+  "fetchedAt": "2026-09-27T04:28:45.000Z",
+  "source": "ThaiWater · ประตูระบายน้ำ",
+  "sourceUrl": "https://www.thaiwater.net/"
+}
+```
+
+- `upstream` คือระดับน้ำด้านรับ และ `downstream` คือระดับน้ำด้านระบาย หน่วยเป็นเมตร รทก. ถ้าไม่ทราบค่าจะเป็น `null` แถวที่ไม่มีทั้งสองค่า หรือไม่มีพิกัด จะถูกตัดทิ้ง
+- `pumpsOn` และ `gatesOpen` มีค่าเฉพาะเมื่อสถานีรายงาน
+- `status: "unsupported-format"` หมายถึงต้นทางส่งข้อมูลมา แต่อ่านไม่ได้เลยสักแถว จะมี log `water_gates_unrecognized` ถ้าต้นทางล่มจะมี log `water_gates_upstream_failed`
+
+## `GET /api/dams`
+
+เขื่อนและอ่างเก็บน้ำ (ขนาดใหญ่และกลาง) payload จากต้นทางมีขนาด 1–4 MB ฝั่ง server จึงตัดเหลือเฉพาะฟิลด์ที่ใช้
+
+```json
+{
+  "dams": [
+    { "id": "1", "name": "เขื่อนภูมิพล", "size": "large", "province": "ตาก", "agency": "กฟผ.", "lat": 17.24, "lng": 98.97,
+      "storage": 9500, "normalStorage": 13462, "percent": 70.57, "inflow": 25.1, "released": 20.0, "date": "2026-09-27" }
+  ],
+  "status": "ok",
+  "fetchedAt": "2026-09-27T04:28:45.000Z",
+  "source": "ThaiWater · เขื่อนและอ่างเก็บน้ำ",
+  "sourceUrl": "https://www.thaiwater.net/"
+}
+```
+
+- `storage` และ `normalStorage` มีหน่วยเป็นล้าน ลบ.ม. ส่วน `inflow` และ `released` เป็นล้าน ลบ.ม. ต่อวัน
+- `percent` ใช้ค่า `dam_storage_percent` จากต้นทาง ถ้าไม่มี จะคำนวณจาก storage ÷ normalStorage ถ้าคำนวณไม่ได้จะเป็น `null`
+- `size` ตีความจากชื่อกลุ่มในข้อมูลต้นทาง: กลุ่มที่ชื่อมี `medium` = `"medium"`, กลุ่ม large/daily = `"large"` ส่วนอ่างขนาดเล็ก (`small`) ไม่ถูกนำมาแสดง
+- `date` คือวันที่รายงานในรูปแบบ YYYY-MM-DD (เวลาไทย)
+- log ที่เกี่ยวข้อง: `dams_unrecognized`, `dams_upstream_failed`
 
 ## `GET /api/flood-wms`
 

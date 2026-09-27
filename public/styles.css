@@ -145,3 +145,29 @@
   .map-locate{bottom:104px}
   .mobile-nav .nav-icon{font-size:22px}
 }
+
+/* ---- Water gates and reservoirs ---- */
+.legend-dot.gate{background:#1d5fa8;border-radius:3px}
+.legend-dot.dam{background:#0d9e9a;border-radius:3px;width:14px}
+.gate-pin{width:22px;height:22px;border-radius:6px;background:#10283f;color:#fff;border:2px solid #fff;display:grid;place-items:center;font:800 12px/1 Manrope,sans-serif;box-shadow:0 2px 8px #0004}
+.dam-pin{display:inline-flex;align-items:center;justify-content:center;gap:3px;height:20px;padding:0 7px;border-radius:999px;background:var(--dam-color);color:#fff;border:2px solid #fff;font:800 11px/1 Manrope,sans-serif;white-space:nowrap;box-shadow:0 2px 8px #0004}
+.dam-pin span{font-size:8px;opacity:.85}
+.dam-pin.is-large{height:24px;font-size:12px;padding:0 9px}
+.dam-badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700;color:#fff;background:var(--dam-color,#9aa9b4)}
+.dam-card{border-left:4px solid var(--dam-color)}
+.dam-card .dam-badge{background:var(--dam-color)}
+.dam-bar{display:block;height:6px;border-radius:3px;background:#e7edf0;margin:6px 0 8px;overflow:hidden}
+.dam-bar i{display:block;height:100%;background:var(--dam-color)}
+.dam-flow{font-size:11px;color:#5d7486;text-align:right}
+.dam-flow b{color:#17354a}
+.dam-flow small{display:block;font-size:10px;color:#8799a7}
+.gate-card .row+.row{margin-top:6px}
+.gate-card .meta{font-size:12px;color:#51687a;margin:6px 0 0;gap:10px}
+.gate-card .meta b{color:#17354a;font-family:Manrope,sans-serif}
+.gate-value{text-align:right;line-height:1}
+.gate-value small{display:block;font-size:10px;color:#8799a7;margin-top:2px}
+.gate-diff{font:800 20px Manrope,sans-serif;color:#17354a}
+.gate-diff.is-up{color:#c2410c}
+.gate-diff.is-down{color:#1d5fa8}
+.gate-card .time{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+@media(max-width:720px){.mobile-nav button span:last-child{font-size:9.5px}}

@@ -90,6 +90,43 @@ export function validTrafficCameras(list) {
     .filter((c) => c.image || c.hls);
 }
 
+/** @param {unknown} value @returns {string | null} */
+const stringOrNull = (value) => typeof value === "string" && value ? value : null;
+
+/**
+ * @param {unknown} list
+ * @returns {import("./types.js").WaterGate[]}
+ */
+export function validWaterGates(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((g) => g && typeof g === "object" && g.id !== undefined && Number.isFinite(g.lat) && Number.isFinite(g.lng))
+    .map((g) => ({
+      id: String(g.id), name: typeof g.name === "string" && g.name ? g.name : "ประตูระบายน้ำ",
+      province: typeof g.province === "string" ? g.province : "", agency: typeof g.agency === "string" ? g.agency : "",
+      lat: g.lat, lng: g.lng, upstream: finiteOrNull(g.upstream), downstream: finiteOrNull(g.downstream),
+      pumpsOn: finiteOrNull(g.pumpsOn), gatesOpen: finiteOrNull(g.gatesOpen), measuredAt: stringOrNull(g.measuredAt)
+    }));
+}
+
+/**
+ * @param {unknown} list
+ * @returns {import("./types.js").Dam[]}
+ */
+export function validDams(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((d) => d && typeof d === "object" && d.id !== undefined && Number.isFinite(d.lat) && Number.isFinite(d.lng))
+    .map((d) => ({
+      id: String(d.id), name: typeof d.name === "string" && d.name ? d.name : "อ่างเก็บน้ำ",
+      size: d.size === "large" ? "large" : "medium",
+      province: typeof d.province === "string" ? d.province : "", agency: typeof d.agency === "string" ? d.agency : "",
+      lat: d.lat, lng: d.lng, storage: finiteOrNull(d.storage), normalStorage: finiteOrNull(d.normalStorage),
+      percent: finiteOrNull(d.percent), inflow: finiteOrNull(d.inflow), released: finiteOrNull(d.released),
+      date: typeof d.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.date) ? d.date : null
+    }));
+}
+
 const clockWithSeconds = new Intl.DateTimeFormat("th-TH", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 /** "11:28:45", or "--:--" when unknown. @param {unknown} value */
 export function fmtClock(value) {

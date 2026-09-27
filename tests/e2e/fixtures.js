@@ -20,6 +20,16 @@ const MIRROR_FILES = {
   "cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js": "hls.min.js"
 };
 
+const today = () => new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const WATER_GATES = [
+  { id: "g-near", name: "ปตร.คลองรังสิต", province: "ปทุมธานี", agency: "ชป.", lat: 14.0, lng: 100.63, upstream: 3.72, downstream: 2.79, pumpsOn: 2, gatesOpen: 3, measuredAt: new Date().toISOString() },
+  { id: "g-far", name: "ปตร.ทดสอบใต้", province: "สงขลา", agency: "สสน.", lat: 7.2, lng: 100.6, upstream: 1.1, downstream: 1.5, pumpsOn: null, gatesOpen: null, measuredAt: new Date().toISOString() }
+];
+const DAMS = () => [
+  { id: "d-large", name: "เขื่อนทดสอบใหญ่", size: "large", province: "ชัยนาท", agency: "ชป.", lat: 15.2, lng: 100.1, storage: 1000, normalStorage: 960, percent: 104, inflow: 40, released: 35.5, date: today() },
+  { id: "d-medium", name: "อ่างทดสอบกลาง", size: "medium", province: "สระบุรี", agency: "ชป.", lat: 14.5, lng: 101, storage: 20, normalStorage: 40, percent: 50, inflow: 1, released: 0.5, date: today() }
+];
+
 const CDN_HOSTS = new Set(["cdnjs.cloudflare.com", "unpkg.com", "cdn.jsdelivr.net"]);
 
 const TRAFFIC_CAMERAS = [
@@ -48,7 +58,7 @@ function makeStations(count) {
 
 /**
  * @typedef {{ status: number, body: string, contentType?: string }} ApiReply
- * @typedef {{ api: (reply: ApiReply | (() => ApiReply)) => void, config: (reply: ApiReply) => void, roadFlood: (reply: ApiReply) => void, trafficCameras: (reply: ApiReply) => void,
+ * @typedef {{ api: (reply: ApiReply | (() => ApiReply)) => void, config: (reply: ApiReply) => void, roadFlood: (reply: ApiReply) => void, trafficCameras: (reply: ApiReply) => void, waterGates: (reply: ApiReply) => void, dams: (reply: ApiReply) => void,
  *   vectorStyle: (ok: boolean) => void, pageErrors: string[], requests: string[] }} Net
  */
 
@@ -79,6 +89,10 @@ async function netFixture({ page }, use) {
   let roadFlood = json({ reports: ROAD_REPORTS, status: "ok", fetchedAt: new Date().toISOString() });
   /** @type {ApiReply} */
   let trafficCameras = json({ cameras: TRAFFIC_CAMERAS, fetchedAt: new Date().toISOString() });
+  /** @type {ApiReply} */
+  let waterGates = json({ gates: WATER_GATES, status: "ok", fetchedAt: new Date().toISOString() });
+  /** @type {ApiReply} */
+  let dams = json({ dams: DAMS(), status: "ok", fetchedAt: new Date().toISOString() });
   /** @type {string[]} */
   const requests = [];
   let styleOk = false;
@@ -97,6 +111,8 @@ async function netFixture({ page }, use) {
       return route.fulfill({ status: reply.status, body: reply.body, contentType: reply.contentType || "application/json" });
     }
     if (pathname === "/api/config") return route.fulfill({ status: config.status, body: config.body, contentType: "application/json" });
+    if (pathname === "/api/water-gates") return route.fulfill({ status: waterGates.status, body: waterGates.body, contentType: "application/json" });
+    if (pathname === "/api/dams") return route.fulfill({ status: dams.status, body: dams.body, contentType: "application/json" });
     if (pathname === "/api/traffic-cameras") return route.fulfill({ status: trafficCameras.status, body: trafficCameras.body, contentType: "application/json" });
     if (host === "camera1.iticfoundation.org") return route.abort();
     if (pathname === "/api/road-flood") return route.fulfill({ status: roadFlood.status, body: roadFlood.body, contentType: "application/json" });
@@ -119,6 +135,8 @@ async function netFixture({ page }, use) {
     config: (reply) => { config = reply; },
     roadFlood: (reply) => { roadFlood = reply; },
     trafficCameras: (reply) => { trafficCameras = reply; },
+    waterGates: (reply) => { waterGates = reply; },
+    dams: (reply) => { dams = reply; },
     requests,
     vectorStyle: (ok) => { styleOk = ok; },
     pageErrors
@@ -128,7 +146,7 @@ async function netFixture({ page }, use) {
 /** Desktop uses the tab row; phones use the bottom menu, where the risk page also lists nearby stations. */
 const isMobile = () => base.info().project.name === "mobile";
 
-/** @param {import("@playwright/test").Page} page @param {"water" | "risk" | "flood" | "camera" | "road"} tab */
+/** @param {import("@playwright/test").Page} page @param {"water" | "risk" | "flood" | "gates" | "camera" | "road"} tab */
 async function openTab(page, tab) {
   if (isMobile()) await page.locator(`[data-nav="${tab === "water" ? "risk" : tab}"]`).click();
   else await page.locator(`.tab[data-tab="${tab}"]`).click();

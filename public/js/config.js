@@ -31,6 +31,15 @@ export const WATER_API_URL = "/api/water";
 export const CONFIG_API_URL = "/api/config";
 export const ROAD_FLOOD_API_URL = "/api/road-flood";
 export const TRAFFIC_CAMERAS_API_URL = "/api/traffic-cameras";
+export const WATER_GATES_API_URL = "/api/water-gates";
+export const DAMS_API_URL = "/api/dams";
+export const GATE_LIST_LIMIT = 12;
+export const DAM_LIST_LIMIT = 20;
+export const DAM_REFRESH_MS = 30 * MINUTE_MS;
+// Reservoir figures are reported once a day; older than this is shown as stale.
+export const DAM_STALE_MS = 3 * 24 * HOUR_MS;
+// Royal Irrigation Department reservoir classes, as % of normal storage.
+export const DAM_CLASSES = Object.freeze({ overAbove: 100, highAbove: 80, lowAtOrBelow: 50, criticalAtOrBelow: 30 });
 export const TRAFFIC_CAMERA_PAGE_SIZE = 12;
 export const THUMBNAIL_REFRESH_MS = 60 * 1000;
 export const TRAFFIC_CAMERA_REFRESH_MS = 15 * 1000;

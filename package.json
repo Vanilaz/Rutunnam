@@ -1,8 +1,8 @@
 {
   "name": "ru-tan-nam",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
-  "description": "Thailand flood watch: bank overflow, flood extent, flooded roads, traffic and CCTV on one map (Vercel)",
+  "description": "Thailand flood watch: bank overflow, flood extent, flooded roads, water gates, dams, traffic and CCTV on one map (Vercel)",
   "scripts": {
     "dev": "node dev-server.js",
     "typecheck": "tsc -p .",

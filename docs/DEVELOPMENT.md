@@ -15,6 +15,8 @@ api/                         Vercel Functions (1 ไฟล์ = 1 endpoint) — 
   water.js                   สถานีวัดน้ำ + fallback ข้อมูลสำเร็จล่าสุด
   road-flood.js              ถนนน้ำท่วม
   traffic-cameras.js         กล้องจราจรทั่วประเทศ + fallback
+  water-gates.js             ประตูระบายน้ำ (createFeedHandler)
+  dams.js                    เขื่อนและอ่างเก็บน้ำ (createFeedHandler)
   flood-wms.js               proxy GISTDA WMS (ซ่อน key)
   config.js                  ชั้นข้อมูลที่ deployment นี้เปิดได้
   flood.js                   endpoint เดิม (ข้อมูลอ้างอิงแบบคงที่)
@@ -23,6 +25,9 @@ lib/                         logic ฝั่ง server ที่ทดสอบ�
   water.js                   แปลง ThaiWater waterlevel_load
   road-flood.js              แปลง ThaiWater flood_road
   traffic-cameras.js         คัดกรองฟีดกล้อง iTIC / Longdo
+  water-gates.js             แปลง ThaiWater watergate_load
+  dams.js                    แปลง ThaiWater analyst/dam (เฉพาะขนาดใหญ่/กลาง)
+  feed-endpoint.js           โครง handler มาตรฐาน: ดึงข้อมูล → แปลง → cache → ข้อมูลสำเร็จล่าสุด → รายงานรูปแบบที่อ่านไม่ได้
   wms.js                     ตรวจพารามิเตอร์ WMS GetMap
   layers.js                  อ่าน env → config สาธารณะ, URL ของ GISTDA/TomTom
   http.js                    method guard, query params, log แบบ JSON
@@ -35,13 +40,14 @@ public/
     types.js                 JSDoc typedef ที่ใช้ร่วมกัน (ไม่ถูกโหลดตอนรันจริง)
     utils.js                 ฟังก์ชันบริสุทธิ์: เวลา ระยะทาง ค้นหา ตรวจข้อมูลจาก API
     risk.js                  จัดระดับความเสี่ยงล้นตลิ่ง
+    reservoir.js             จัดระดับเขื่อนตามเกณฑ์กรมชลประทาน, ต่างระดับประตูน้ำ
     templates.js             สร้าง HTML ทั้งหมด (escape ทุกค่าจากภายนอก, อนุญาตเฉพาะลิงก์ http/https)
     api.js                   เรียก /api/* พร้อม timeout และข้อความ error ภาษาไทย
     storage.js               localStorage (cache สถานี, หมุดบ้าน, การเปิด/ปิดชั้น)
     load.js                  โหลด script/stylesheet จาก CDN พร้อม SRI เมื่อต้องใช้
     map/                     map.js, basemap.js, stations-layer.js, cameras-layer.js,
                              traffic-cameras-layer.js, flood-layer.js, traffic-layer.js,
-                             road-flood-layer.js, location-layer.js
+                             road-flood-layer.js, water-gates-layer.js, dams-layer.js, location-layer.js
     ui/                      dom.js, clock.js, status.js, list-panel.js, camera-viewer.js
   vendor/leaflet.min.css     CSS ของ Leaflet 1.9.4 (BSD-2-Clause)
 scripts/check-build.js       ตรวจไฟล์จำเป็น, import graph, modulepreload
@@ -53,7 +59,7 @@ types/globals.d.ts           type ของ global จาก CDN (plugin MapLibr
 **ลำดับการโหลดหน้าเว็บ**
 1. Leaflet จาก cdnjs และ `main.js`
 2. แสดงข้อมูลจาก cache ในเครื่อง (ถ้ามี)
-3. ดึง `/api/water`, `/api/road-flood`, `/api/traffic-cameras` และ `/api/config` พร้อมกัน
+3. ดึง `/api/water`, `/api/road-flood`, `/api/traffic-cameras`, `/api/water-gates`, `/api/dams` และ `/api/config` พร้อมกัน
 4. โหลดแผนที่ MapLibre (lazy)
 5. hls.js โหลดเฉพาะตอนผู้ใช้เปิดดูวิดีโอ
 
@@ -86,10 +92,8 @@ Helper สำหรับเขียน test ที่ใช้ได้ทั�
 **เพิ่ม endpoint ใหม่**
 1. เขียน parser ใน `lib/` โดยใช้ `lib/parse.js` แล้วเขียน unit test
 2. สร้าง `api/<name>.js`:
-   - เรียก `rejectUnsafeMethod` ก่อน
-   - ใส่ timeout ให้ upstream
-   - ตั้ง `Cache-Control` ให้เหมาะ
-   - ใช้ `logEvent` เมื่อผิดพลาด
+   - ถ้าเป็นฟีดรายการเดียวจากต้นทาง ให้ใช้ `createFeedHandler` จาก `lib/feed-endpoint.js` ซึ่งจัดการ method guard, timeout, cache, ข้อมูลสำเร็จล่าสุด และสถานะ `unsupported-format` ให้แล้ว
+   - ถ้าเขียนเอง: เรียก `rejectUnsafeMethod` ก่อน ใส่ timeout ให้ upstream ตั้ง `Cache-Control` ให้เหมาะ และใช้ `logEvent` เมื่อผิดพลาด
 3. เพิ่ม path ใน `apiRoutes` ของ `dev-server.js`
 4. อธิบายใน `docs/API.md`
 

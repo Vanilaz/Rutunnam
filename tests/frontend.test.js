@@ -150,3 +150,51 @@ test("flood tab distinguishes unreadable data from no flooding", async () => {
   assert.match(floodTabHtml({ ...base, roads: [], roadUnsupported: false }), /ไม่มีรายงานถนนน้ำท่วม/);
   assert.match(floodTabHtml({ ...base, roads: null, roadUnsupported: false }), /GISTDA_API_KEY/);
 });
+
+test("damStatus follows the Royal Irrigation Department classes and marks old reports stale", async () => {
+  const { damStatus, rankDams } = await load("reservoir.js");
+  const now = Date.parse("2026-09-27T05:00:00Z");
+  const dam = (percent, date = "2026-09-27", size = "medium") => ({ id: String(percent), name: "x", size, lat: 15, lng: 100, storage: null, normalStorage: null, percent, inflow: null, released: null, date });
+  assert.equal(damStatus(dam(101), now), "over");
+  assert.equal(damStatus(dam(100), now), "high");
+  assert.equal(damStatus(dam(81), now), "high");
+  assert.equal(damStatus(dam(80), now), "normal");
+  assert.equal(damStatus(dam(50), now), "low");
+  assert.equal(damStatus(dam(30), now), "critical");
+  assert.equal(damStatus(dam(null), now), "unknown");
+  assert.equal(damStatus(dam(120, "2026-09-20"), now), "stale");
+  assert.equal(damStatus(dam(120, null), now), "stale");
+  const ranked = rankDams([dam(60), dam(95, "2026-09-27", "large"), dam(110)], now).map(({ dam: d }) => d.id);
+  assert.deepEqual(ranked, ["95", "110", "60"]);
+});
+
+test("gate difference is intake minus release, and missing sides stay unknown", async () => {
+  const { gateDifference } = await load("reservoir.js");
+  assert.equal(gateDifference({ upstream: 3.72, downstream: 2.79 }).toFixed(2), "0.93");
+  assert.equal(gateDifference({ upstream: 2.8, downstream: 3.64 }).toFixed(2), "-0.84");
+  assert.equal(gateDifference({ upstream: null, downstream: 3 }), null);
+});
+
+test("gates tab escapes names, shows both sides and flags unreadable feeds", async () => {
+  const { gatesTabHtml } = await load("templates.js");
+  const gate = { id: "g1", name: "<i>ปตร.หันตรา</i>", province: "อยุธยา", agency: "สสน.", lat: 14.3, lng: 100.6, upstream: 3.72, downstream: 2.79, pumpsOn: 2, gatesOpen: null, measuredAt: null };
+  const dam = { id: "d1", name: "เขื่อนเจ้าพระยา", size: "large", province: "ชัยนาท", agency: "ชป.", lat: 15.2, lng: 100.1, storage: 720, normalStorage: 960, percent: 75, inflow: 12.5, released: 9.1, date: "2026-09-27" };
+  const html = gatesTabHtml({ gates: [{ gate, distance: 2 }], gateTotal: 1, gateError: null, gateUnsupported: false, dams: [{ dam, status: "normal", distance: 120 }], damTotal: 1, damCounts: { over: 0, high: 0 }, damError: null, damUnsupported: false });
+  assert.ok(!html.includes("<i>"));
+  assert.match(html, /\+0\.93/);
+  assert.match(html, /น้ำด้านรับ <b>3\.72<\/b>/);
+  assert.match(html, /เครื่องสูบทำงาน 2/);
+  assert.match(html, /data-dam="d1"/);
+  assert.match(html, /ระบาย <b>9\.1<\/b>/);
+  const unreadable = gatesTabHtml({ gates: [], gateTotal: 0, gateError: null, gateUnsupported: true, dams: null, damTotal: 0, damCounts: { over: 0, high: 0 }, damError: "ล่ม", damUnsupported: false });
+  assert.match(unreadable, /ไม่ได้แปลว่าไม่มีข้อมูล/);
+  assert.match(unreadable, /ล่ม/);
+});
+
+test("dam popup keeps meaningful precision for daily volumes", async () => {
+  const { damPopupHtml } = await load("templates.js");
+  const html = damPopupHtml({ id: "d", name: "x", size: "large", lat: 15, lng: 100, storage: 1234.56, normalStorage: 960, percent: 128.6, inflow: 3.456, released: 35.54, date: "2026-09-27" }, "over");
+  assert.match(html, /ระบาย 35\.5 ล้าน/);
+  assert.match(html, /ไหลเข้า 3\.46/);
+  assert.match(html, /1,235 \/ 960/);
+});

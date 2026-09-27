@@ -1,6 +1,7 @@
 // HTML string builders. Every dynamic value goes through escapeHtml.
 import { DEFAULT_CAMERA_REFRESH_MS, NEARBY_RADIUS_KM, THAIWATER_URL } from "./config.js";
 import { formatMargin, RISK_STYLES, stationRisk } from "./risk.js";
+import { DAM_STYLES, gateDifference } from "./reservoir.js";
 import { escapeHtml as esc, fmtTime, isFresh, levelText } from "./utils.js";
 
 /** @typedef {import("./types.js").Station} Station */
@@ -9,6 +10,9 @@ import { escapeHtml as esc, fmtTime, isFresh, levelText } from "./utils.js";
 /** @typedef {import("./types.js").StationRisk} StationRisk */
 /** @typedef {import("./types.js").RoadFlood} RoadFlood */
 /** @typedef {import("./types.js").LayerConfig} LayerConfig */
+/** @typedef {import("./types.js").WaterGate} WaterGate */
+/** @typedef {import("./types.js").Dam} Dam */
+/** @typedef {import("./types.js").DamStatus} DamStatus */
 
 const STALE_NOTE = " · ข้อมูลเก่า/ไม่ทราบเวลา";
 // Only http(s) links are rendered; anything else (e.g. "javascript:") falls back to the data source.
@@ -174,4 +178,64 @@ export function waterTabHtml({ nearest, hasStations, error, fetchedAt }) {
   if (!hasStations) return `<div class="empty"><strong>กำลังโหลดสถานี</strong><p>รอสักครู่เพื่อแสดงข้อมูลตรวจวัดล่าสุด</p></div>`;
   const warning = error ? `<div class="cache-warning">ข้อมูลใหม่ยังไม่พร้อม · แสดงข้อมูลที่ดึง ${esc(fmtTime(fetchedAt))}</div>` : "";
   return `${warning}<div class="content-heading"><strong>สถานีใกล้จุดศูนย์กลาง</strong><span>${nearest.length} สถานี</span></div>${nearest.map(stationCardHtml).join("")}<p class="subtle">ระดับน้ำอ้างอิงระดับทะเลปานกลาง (รทก.) ไม่ใช่ความลึกน้ำบนถนน และยังไม่ใช้สรุปว่าล้นตลิ่งจนกว่าจะมีเกณฑ์รายสถานี</p>`;
+}
+
+/** @param {number | null} n @param {number} [digits] */
+const metres = (n, digits = 2) => n === null ? "—" : n.toFixed(digits);
+/** Million m³: 2 decimals below 10, 1 below 100, whole numbers above. @param {number | null} n */
+const volume = (n) => n === null ? "—" : n.toLocaleString("th-TH", { maximumFractionDigits: n < 10 ? 2 : n < 100 ? 1 : 0 });
+/** "+0.93" / "−0.84" with a class for colour. @param {number | null} diff */
+const diffHtml = (diff) => diff === null ? `<span class="gate-diff">—</span>` : `<span class="gate-diff ${diff > 0 ? "is-up" : "is-down"}">${diff > 0 ? "+" : "−"}${Math.abs(diff).toFixed(2)}</span>`;
+/** @param {string | null} day YYYY-MM-DD */
+const dayText = (day) => day ? fmtTime(`${day}T12:00:00+07:00`).replace(/\s*\d{2}:\d{2}$/, "") : "ไม่ทราบวันที่";
+
+/** @param {WaterGate} g */
+function gateExtras(g) {
+  const parts = [];
+  if (g.gatesOpen !== null) parts.push(`เปิดบาน ${g.gatesOpen}`);
+  if (g.pumpsOn !== null) parts.push(`เครื่องสูบทำงาน ${g.pumpsOn}`);
+  return parts.join(" · ");
+}
+
+/** @param {WaterGate} g */
+export function waterGatePopupHtml(g) {
+  const extras = gateExtras(g);
+  return `<strong>${esc(g.name)}</strong><br><small>${esc([g.province, g.agency].filter(Boolean).join(" · ") || "ประตูระบายน้ำ")}</small><br>น้ำด้านรับ ${metres(g.upstream)} ม. · ด้านระบาย ${metres(g.downstream)} ม.<br>ต่างระดับ ${diffHtml(gateDifference(g))} ม.${extras ? `<br><small>${esc(extras)}</small>` : ""}<br><small>ตรวจวัด: ${esc(fmtTime(g.measuredAt))}${isFresh(g) ? "" : STALE_NOTE}</small><br>${external(THAIWATER_URL, "ดูที่มา ↗", "")}`;
+}
+
+/** @param {Dam} d @param {DamStatus} status */
+export function damPopupHtml(d, status) {
+  const pct = d.percent !== null ? `${d.percent.toFixed(0)}% ของความจุปกติ` : "ไม่มีข้อมูลปริมาณน้ำ";
+  return `<strong>${esc(d.name)}</strong><br><small>${d.size === "large" ? "เขื่อน/อ่างขนาดใหญ่" : "อ่างขนาดกลาง"}${d.province ? ` · ${esc(d.province)}` : ""}</small><br><span class="dam-badge" style="--dam-color:${DAM_STYLES[status].color}">${DAM_STYLES[status].label}</span> ${pct}<br>ปริมาณน้ำ ${volume(d.storage)} / ${volume(d.normalStorage)} ล้าน ลบ.ม.<br>ไหลเข้า ${volume(d.inflow)} · ระบาย ${volume(d.released)} ล้าน ลบ.ม./วัน<br><small>ข้อมูลวันที่ ${esc(dayText(d.date))}</small><br>${external(THAIWATER_URL, "ดูที่มา ↗", "")}`;
+}
+
+/**
+ * @param {{ gates: { gate: WaterGate, distance: number }[] | null, gateTotal: number, gateError: string | null, gateUnsupported: boolean,
+ *   dams: { dam: Dam, status: DamStatus, distance: number }[] | null, damTotal: number, damCounts: { over: number, high: number },
+ *   damError: string | null, damUnsupported: boolean }} view
+ */
+export function gatesTabHtml({ gates, gateTotal, gateError, gateUnsupported, dams, damTotal, damCounts, damError, damUnsupported }) {
+  /** @param {string} what */
+  const unreadable = (what) => `<div class="cache-warning">ต้นทางเปลี่ยนรูปแบบข้อมูล${what} แอปยังอ่านไม่ได้ (ไม่ได้แปลว่าไม่มีข้อมูล)</div>`;
+  let gateHtml;
+  if (gateError) gateHtml = `<div class="cache-warning">${esc(gateError)}</div>`;
+  else if (gateUnsupported) gateHtml = unreadable("ประตูระบายน้ำ");
+  else if (gates === null) gateHtml = `<p class="subtle">กำลังโหลดข้อมูลประตูระบายน้ำ...</p>`;
+  else if (!gates.length) gateHtml = `<p class="subtle">ไม่มีข้อมูลประตูระบายน้ำจากต้นทางในขณะนี้</p>`;
+  else gateHtml = gates.map(({ gate: g, distance }) => `<button type="button" class="station-card gate-card" data-gate="${esc(g.id)}"><span class="row"><strong>${esc(g.name)}</strong><span class="gate-value">${diffHtml(gateDifference(g))}<small>ต่างระดับ</small></span></span><span class="row meta"><span>น้ำด้านรับ <b>${metres(g.upstream)}</b> ม.</span><span>ด้านระบาย <b>${metres(g.downstream)}</b> ม.</span></span><span class="row time"><span>${esc(g.agency || g.province || "")}${gateExtras(g) ? ` · ${esc(gateExtras(g))}` : ""}</span><span>${distance.toFixed(1)} km · ${esc(fmtTime(g.measuredAt))}</span></span></button>`).join("");
+
+  let damHtml;
+  if (damError) damHtml = `<div class="cache-warning">${esc(damError)}</div>`;
+  else if (damUnsupported) damHtml = unreadable("เขื่อน");
+  else if (dams === null) damHtml = `<p class="subtle">กำลังโหลดข้อมูลเขื่อน...</p>`;
+  else if (!dams.length) damHtml = `<p class="subtle">ไม่มีข้อมูลเขื่อนจากต้นทางในขณะนี้</p>`;
+  else damHtml = dams.map(({ dam: d, status, distance }) => {
+    const pct = d.percent !== null ? Math.max(0, Math.min(d.percent, 120)) : 0;
+    return `<button type="button" class="station-card dam-card" data-dam="${esc(d.id)}" style="--dam-color:${DAM_STYLES[status].color}"><span class="row"><strong>${esc(d.name)}</strong><span class="dam-badge">${DAM_STYLES[status].label}</span></span><span class="meta">${d.size === "large" ? "ขนาดใหญ่" : "ขนาดกลาง"}${d.province ? ` · ${esc(d.province)}` : ""} · ${distance.toFixed(0)} km</span><span class="dam-bar" aria-hidden="true"><i style="width:${(pct / 1.2).toFixed(1)}%"></i></span><span class="row"><span class="value">${d.percent !== null ? `${d.percent.toFixed(0)}<small>%</small>` : "—"}</span><span class="dam-flow">ไหลเข้า ${volume(d.inflow)} · ระบาย <b>${volume(d.released)}</b><small>ล้าน ลบ.ม./วัน</small></span></span><span class="time">ปริมาณน้ำ ${volume(d.storage)} / ${volume(d.normalStorage)} ล้าน ลบ.ม. · ${esc(dayText(d.date))}</span></button>`;
+  }).join("");
+
+  const damSummary = dams && dams.length ? `<div class="nearby-summary"><div><strong class="risk-text-overflow">${damCounts.over}</strong><span>เกินความจุ</span></div><div><strong class="risk-text-high">${damCounts.high}</strong><span>น้ำมาก (&gt;80%)</span></div><div><strong>${damTotal}</strong><span>เขื่อน/อ่างทั้งหมด</span></div></div>` : "";
+  return `<div class="content-heading"><strong>ประตูระบายน้ำ / สถานีสูบน้ำใกล้คุณ</strong><span>${gateTotal ? `${gateTotal} แห่ง` : ""}</span></div>${gateHtml}<p class="subtle">ระดับน้ำเป็นเมตร รทก. ต่างระดับ = ด้านรับ − ด้านระบาย ค่าบวกแปลว่าน้ำฝั่งรับสูงกว่า</p>`
+    + `<div class="content-heading"><strong>เขื่อนและอ่างเก็บน้ำ</strong><span>เรียงขนาดใหญ่ก่อน</span></div>${damSummary}${damHtml}`
+    + `<p class="subtle">% คิดจากความจุปกติ ใช้เกณฑ์กรมชลประทาน: เกิน 100% เกินความจุ, เกิน 80% น้ำมาก, ไม่เกิน 50% น้ำน้อย, ไม่เกิน 30% น้ำน้อยวิกฤต ข้อมูลรายงานวันละครั้ง ปริมาณน้ำไหลเข้า/ระบายเป็นล้าน ลบ.ม. ต่อวัน</p>`;
 }
