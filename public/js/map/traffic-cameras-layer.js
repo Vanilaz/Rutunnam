@@ -16,7 +16,14 @@ export function createTrafficCamerasLayer(map, { onOpen }) {
   const markers = new Map();
   /** @type {ReturnType<typeof setInterval> | null} */
   let refreshTimer = null;
-  const stopRefresh = () => { if (refreshTimer) clearInterval(refreshTimer); refreshTimer = null; };
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let loadTimeout = null;
+  const stopRefresh = () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    if (loadTimeout) clearTimeout(loadTimeout);
+    refreshTimer = null;
+    loadTimeout = null;
+  };
   map.on("popupclose", stopRefresh);
   return {
     /** @param {TrafficCamera[]} cameras */
@@ -36,9 +43,22 @@ export function createTrafficCamerasLayer(map, { onOpen }) {
           const img = element?.querySelector(".camera-popup-image");
           const status = element?.querySelector(".camera-popup-status");
           if (img instanceof HTMLImageElement && camera.image) {
-            img.onload = () => { if (status) status.textContent = "ภาพล่าสุดจากกล้อง"; };
-            img.onerror = () => { if (status) status.textContent = "กล้องไม่ส่งภาพในขณะนี้"; img.style.display = "none"; };
-            const refresh = () => { if (!document.hidden && camera.image) img.src = `${camera.image}${camera.image.includes("?") ? "&" : "?"}t=${Date.now()}`; };
+            img.onload = () => {
+              if (loadTimeout) clearTimeout(loadTimeout);
+              img.style.display = "block";
+              if (status) status.textContent = "ภาพล่าสุดจากกล้อง";
+            };
+            img.onerror = () => {
+              if (loadTimeout) clearTimeout(loadTimeout);
+              if (status) status.textContent = "กล้องไม่ส่งภาพในขณะนี้";
+              img.style.display = "none";
+            };
+            const refresh = () => {
+              if (document.hidden || !camera.image) return;
+              if (loadTimeout) clearTimeout(loadTimeout);
+              loadTimeout = setTimeout(() => { if (!img.complete || !img.naturalWidth) { img.style.display = "none"; if (status) status.textContent = "กล้องไม่ตอบสนอง ลองดูภาพเต็มจอ"; } }, 10000);
+              img.src = `${camera.image}${camera.image.includes("?") ? "&" : "?"}t=${Date.now()}`;
+            };
             refresh();
             refreshTimer = setInterval(refresh, 30000);
           }
