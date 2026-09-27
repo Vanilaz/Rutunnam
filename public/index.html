@@ -9,7 +9,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://tile.openstreetmap.org">
   <link rel="stylesheet" href="/vendor/leaflet.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin="anonymous">
   <link rel="stylesheet" href="/styles.css">
   <title>รู้ทันน้ำ — แผนที่สถานการณ์น้ำ</title>
 </head>
@@ -36,7 +36,7 @@
           <div class="layers-heading"><span class="section-kicker">ข้อมูลบนแผนที่</span><span class="hint">เปิด / ปิด</span></div>
           <label class="layer-row"><span class="layer-icon blue"><svg viewBox="0 0 24 24"><path d="M3 15c3-3 5-3 8 0s5 3 10 0M3 9c3-3 5-3 8 0s5 3 10 0"/></svg></span><span class="layer-text"><strong>สถานีวัดน้ำ</strong><small id="station-count">กำลังโหลด</small></span><input id="toggle-water" type="checkbox" checked><span class="switch"></span></label>
           <button class="layer-row layer-action" id="flood-sources" type="button"><span class="layer-icon amber"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5m0 3h.01"/></svg></span><span class="layer-text"><strong>ตรวจสอบน้ำท่วม</strong><small>เปิดแหล่งข้อมูล GISTDA และ กทม.</small></span><span class="action-arrow">↗</span></button>
-          <label class="layer-row"><span class="layer-icon violet"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2M7 3h7"/></svg></span><span class="layer-text"><strong>กล้อง CCTV</strong><small>จุดเปิดศูนย์กล้องในพื้นที่</small></span><input id="toggle-camera" type="checkbox" checked><span class="switch"></span></label>
+          <label class="layer-row"><span class="layer-icon violet"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2M7 3h7"/></svg></span><span class="layer-text"><strong>กล้อง CCTV</strong><small>กล้องดูระดับน้ำและศูนย์กล้องในพื้นที่</small></span><input id="toggle-camera" type="checkbox" checked><span class="switch"></span></label>
 
           <div class="source-box"><span class="source-dot"></span><div><strong id="feed-state">กำลังเชื่อมต่อข้อมูล</strong><p id="feed-detail">กำลังตรวจสอบสถานีวัดน้ำล่าสุด</p></div></div>
           <p class="sidebar-foot">ข้อมูลสถานีไม่ได้ยืนยันสภาพน้ำที่บ้านหรือบนถนน • อย่าใช้แผนที่นี้แทนประกาศเตือนภัยในพื้นที่</p>
@@ -51,7 +51,7 @@
           </div>
           <div class="map-top"><div class="map-badge"><span class="pulse"></span><span id="map-status">กำลังโหลดสถานีวัดน้ำ</span></div><button id="recenter" class="map-tool" type="button" aria-label="กลับไปที่รังสิต" title="กลับไปที่รังสิต"><svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M2 12h4m12 0h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg></button></div>
           <button id="map-locate" type="button" class="map-locate" aria-label="ไปที่ตำแหน่งฉัน">◎ <span>ตำแหน่งฉัน</span></button>
-          <div class="map-legend"><span><i class="legend-dot teal"></i> สถานีวัดน้ำ</span><span><i class="legend-dot camera"></i> ศูนย์กล้อง (พิกัดพื้นที่)</span><span><i class="legend-dot navy"></i> บ้าน</span><span><i class="legend-dot purple"></i> ตำแหน่งฉัน</span></div>
+          <div class="map-legend"><span><i class="legend-dot teal"></i> สถานีวัดน้ำ</span><span><i class="legend-dot camera"></i> กล้อง CCTV</span><span><i class="legend-dot navy"></i> บ้าน</span><span><i class="legend-dot purple"></i> ตำแหน่งฉัน</span></div>
           <div id="map-fallback" class="map-fallback" hidden>แผนที่โหลดไม่ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต <button onclick="location.reload()">ลองอีกครั้ง</button></div>
         </section>
 
@@ -63,12 +63,12 @@
         </aside>
       </div>
       <nav class="mobile-nav" aria-label="เมนูหลัก"><button type="button" data-nav="map" class="active">⌖<span>แผนที่</span></button><button type="button" data-nav="water">≋<span>ระดับน้ำ</span></button><button type="button" data-nav="flood">△<span>น้ำท่วม</span></button><button type="button" data-nav="camera">▣<span>กล้อง</span></button><button type="button" data-nav="road">⇢<span>เส้นทาง</span></button><button type="button" data-nav="locate">◎<span>ตำแหน่ง</span></button></nav>
-      <footer class="footer"><div><strong>รู้ทันน้ำ</strong><span>ต้นแบบแผนที่ข้อมูลน้ำสำหรับประชาชน</span></div><div>ข้อมูล: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener noreferrer">ThaiWater</a> · <a href="https://dds.bangkok.go.th/cctv.php" target="_blank" rel="noopener noreferrer">สำนักการระบายน้ำ กทม.</a> · <a href="https://rangsitcity.go.th/cctvrangsitcity/" target="_blank" rel="noopener noreferrer">เทศบาลนครรังสิต</a> · <a href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">GISTDA</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a></div></footer>
+      <footer class="footer"><div><strong>รู้ทันน้ำ</strong><span>ต้นแบบแผนที่ข้อมูลน้ำสำหรับประชาชน</span></div><div>ข้อมูล: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener noreferrer">ThaiWater</a> · <a href="https://dds.bangkok.go.th/cctv.php" target="_blank" rel="noopener noreferrer">สำนักการระบายน้ำ กทม.</a> · <a href="https://rangsitcity.go.th/cctvrangsitcity/" target="_blank" rel="noopener noreferrer">เทศบาลนครรังสิต</a> · <a href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">GISTDA</a> · <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a></div></footer>
     </main>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
-  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js" defer></script>
-  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js" defer></script>
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js" integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin="anonymous" defer></script>
+  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js" integrity="sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS" crossorigin="anonymous" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>
