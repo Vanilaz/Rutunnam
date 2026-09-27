@@ -8,8 +8,26 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://tile.openstreetmap.org">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
   <link rel="stylesheet" href="/vendor/leaflet.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin="anonymous">
+  <link rel="modulepreload" href="/js/main.js">
+  <link rel="modulepreload" href="/js/api.js">
+  <link rel="modulepreload" href="/js/config.js">
+  <link rel="modulepreload" href="/js/map/basemap.js">
+  <link rel="modulepreload" href="/js/map/cameras-layer.js">
+  <link rel="modulepreload" href="/js/map/location-layer.js">
+  <link rel="modulepreload" href="/js/map/map.js">
+  <link rel="modulepreload" href="/js/map/stations-layer.js">
+  <link rel="modulepreload" href="/js/storage.js">
+  <link rel="modulepreload" href="/js/templates.js">
+  <link rel="modulepreload" href="/js/ui/clock.js">
+  <link rel="modulepreload" href="/js/ui/list-panel.js">
+  <link rel="modulepreload" href="/js/ui/status.js">
+  <link rel="modulepreload" href="/js/utils.js">
   <link rel="stylesheet" href="/styles.css">
   <title>รู้ทันน้ำ — แผนที่สถานการณ์น้ำ</title>
 </head>
@@ -52,7 +70,7 @@
           <div class="map-top"><div class="map-badge"><span class="pulse"></span><span id="map-status">กำลังโหลดสถานีวัดน้ำ</span></div><button id="recenter" class="map-tool" type="button" aria-label="กลับไปที่รังสิต" title="กลับไปที่รังสิต"><svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M2 12h4m12 0h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg></button></div>
           <button id="map-locate" type="button" class="map-locate" aria-label="ไปที่ตำแหน่งฉัน">◎ <span>ตำแหน่งฉัน</span></button>
           <div class="map-legend"><span><i class="legend-dot teal"></i> สถานีวัดน้ำ</span><span><i class="legend-dot camera"></i> กล้อง CCTV</span><span><i class="legend-dot navy"></i> บ้าน</span><span><i class="legend-dot purple"></i> ตำแหน่งฉัน</span></div>
-          <div id="map-fallback" class="map-fallback" hidden>แผนที่โหลดไม่ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต <button onclick="location.reload()">ลองอีกครั้ง</button></div>
+          <div id="map-fallback" class="map-fallback" hidden>แผนที่โหลดไม่ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต <button id="map-retry" type="button">ลองอีกครั้ง</button></div>
         </section>
 
         <aside class="insights" aria-label="รายการและแหล่งข้อมูล">
@@ -67,8 +85,6 @@
     </main>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
-  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js" integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin="anonymous" defer></script>
-  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js" integrity="sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS" crossorigin="anonymous" defer></script>
-  <script src="/app.js" defer></script>
+  <script type="module" src="/js/main.js"></script>
 </body>
 </html>
