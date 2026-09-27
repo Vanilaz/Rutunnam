@@ -134,14 +134,27 @@ test.describe("flood and traffic layers", () => {
     expect(net.pageErrors).toEqual([]);
   });
 
-  test("traffic quick filter turns on live traffic tiles", async ({ page, net }) => {
+  test("live traffic is on by default when a key is configured", async ({ page, net }) => {
     await page.goto("/");
-    await expect(page.locator("#toggle-traffic")).toBeEnabled();
-    await page.locator('[data-quick="road"]').click();
     await expect(page.locator("#toggle-traffic")).toBeChecked();
     await expect.poll(() => net.requests.filter((url) => url.startsWith("https://api.tomtom.com/traffic/map/4/tile/flow/")).length).toBeGreaterThan(0);
-    await expect(page.locator("#tab-content")).toContainText("การจราจรสด");
+    await page.locator('[data-quick="road"]').click();
+    await expect(page.locator("#tab-content")).toContainText("ซ่อนการจราจร");
     expect(net.pageErrors).toEqual([]);
+  });
+
+  test("a viewer who switches traffic off keeps it off after reload", async ({ page, net }) => {
+    await page.goto("/");
+    await expect(page.locator("#toggle-traffic")).toBeChecked();
+    await page.locator("label:has(#toggle-traffic)").click();
+    await expect(page.locator("#toggle-traffic")).not.toBeChecked();
+    await page.reload();
+    await expect(page.locator("#toggle-traffic")).toBeEnabled();
+    await expect(page.locator("#toggle-flood")).toBeChecked();
+    await expect(page.locator("#toggle-traffic")).not.toBeChecked();
+    const before = net.requests.length;
+    await page.waitForTimeout(500);
+    expect(net.requests.slice(before).some((url) => url.includes("api.tomtom.com"))).toBe(false);
   });
 
   test("layers without API keys are disabled and explained", async ({ page, net }) => {

@@ -26,7 +26,7 @@ export const STORAGE_CLASSES = Object.freeze({ overflowAbove: 100, highAbove: 70
 export const MOBILE_BREAKPOINT_PX = 721;
 export const GEOLOCATION_OPTIONS = Object.freeze({ enableHighAccuracy: true, timeout: 12 * 1000, maximumAge: MINUTE_MS });
 
-export const STORAGE_KEYS = Object.freeze({ waterCache: "rutan-water-cache", home: "rutan-home" });
+export const STORAGE_KEYS = Object.freeze({ waterCache: "rutan-water-cache", home: "rutan-home", layers: "rutan-layers" });
 export const WATER_API_URL = "/api/water";
 export const CONFIG_API_URL = "/api/config";
 export const ROAD_FLOOD_API_URL = "/api/road-flood";

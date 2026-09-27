@@ -1,7 +1,7 @@
 // Composition root: owns app state and wires modules to the DOM.
 import { CAMERA_SOURCES, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS } from "./config.js";
 import { fetchLayerConfig, fetchRoadFloods, fetchStations, NO_OPTIONAL_LAYERS } from "./api.js";
-import { loadCachedStations, loadHome, saveCachedStations, saveHome } from "./storage.js";
+import { isLayerWanted, loadCachedStations, loadHome, saveCachedStations, saveHome, saveLayerPref } from "./storage.js";
 import { age, distanceKm, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
 import { riskyStations } from "./risk.js";
 import { cameraTabHtml, floodTabHtml, riskTabHtml, roadTabHtml, waterTabHtml } from "./templates.js";
@@ -168,8 +168,8 @@ const listPanel = createListPanel(byId("tab-content"), {
   },
   onAction(action) {
     if (action === "retry") loadStations();
-    else if (action === "toggle-traffic") setToggle(ui.toggleTraffic, !ui.toggleTraffic.checked);
-    else if (action === "toggle-flood") setToggle(ui.toggleFlood, !ui.toggleFlood.checked);
+    else if (action === "toggle-traffic") { setToggle(ui.toggleTraffic, !ui.toggleTraffic.checked); saveLayerPref("traffic", ui.toggleTraffic.checked); }
+    else if (action === "toggle-flood") { setToggle(ui.toggleFlood, !ui.toggleFlood.checked); saveLayerPref("flood", ui.toggleFlood.checked); }
     else if (action === "toggle-risk-only") setToggle(ui.toggleRiskOnly, !ui.toggleRiskOnly.checked);
   }
 });
@@ -292,11 +292,12 @@ async function loadLayerConfig() {
   setLayerAvailability(ui.toggleTraffic, ui.trafficNote, traffic.available, "สีตามความเร็วรถ · อัปเดตทุก 2 นาที", "ยังไม่ได้ตั้งค่า API key ข้อมูลจราจร");
   if (map && flood.available && flood.wmsUrl) {
     floodLayer = createFloodLayer(map, { wmsUrl: flood.wmsUrl, onError: () => { state.floodError = true; ui.floodNote.textContent = "GISTDA · โหลดภาพไม่ได้"; renderList(); } });
-    // Flood extent is the point of this layer during a flood, so it starts on when available.
-    setToggle(ui.toggleFlood, true);
+    // Flood extent and traffic start on when available, unless this viewer switched them off before.
+    if (isLayerWanted("flood")) setToggle(ui.toggleFlood, true);
   }
   if (map && traffic.available && traffic.tileUrl) {
     trafficLayer = createTrafficLayer(map, { tileUrl: traffic.tileUrl, attribution: traffic.attribution, onError: () => { ui.trafficNote.textContent = "โหลดข้อมูลจราจรไม่ได้"; } });
+    if (isLayerWanted("traffic")) setToggle(ui.toggleTraffic, true);
   }
   renderList();
 }
@@ -314,6 +315,9 @@ ui.toggleRiskOnly.addEventListener("change", () => {
 });
 ui.toggleFlood.addEventListener("change", () => { floodLayer?.setVisible(ui.toggleFlood.checked); renderList(); });
 ui.toggleTraffic.addEventListener("change", () => { trafficLayer?.setVisible(ui.toggleTraffic.checked); renderList(); });
+// Remember only choices the viewer made by hand; code-driven toggles (setToggle) do not count.
+ui.toggleFlood.addEventListener("input", () => saveLayerPref("flood", ui.toggleFlood.checked));
+ui.toggleTraffic.addEventListener("input", () => saveLayerPref("traffic", ui.toggleTraffic.checked));
 ui.toggleRoadFlood.addEventListener("change", () => {
   roadFloodLayer?.setVisible(ui.toggleRoadFlood.checked);
   if (ui.toggleRoadFlood.checked && age(state.roadFetchedAt) >= STATION_REFRESH_MS) loadRoadFloods();
