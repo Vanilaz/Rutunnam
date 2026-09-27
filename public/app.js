@@ -25,6 +25,18 @@
   const age = (date) => date ? Date.now() - new Date(date).getTime() : Infinity;
   const isFresh = (s) => age(s.measuredAt) < 6 * 60 * 60 * 1000;
   const levelText = (s) => s.level === null ? "—" : s.level.toFixed(2);
+  function setTab(tab) {
+    const button = document.querySelector(`[data-tab="${tab}"]`);
+    if (!button) return;
+    state.tab = tab;
+    document.querySelectorAll(".tab").forEach((item) => { item.classList.toggle("active", item === button); item.setAttribute("aria-selected", String(item === button)); });
+    document.querySelectorAll("[data-quick]").forEach((item) => item.classList.toggle("selected", item.dataset.quick === tab));
+    renderList();
+  }
+  function openSection(tab) {
+    setTab(tab);
+    document.querySelector(".insights").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function tickClock() {
     const now = new Date();
@@ -129,6 +141,7 @@
       el("feed-detail").textContent = `ดึงข้อมูล ${fmtTime(state.fetchedAt)} · แต่ละสถานีมีเวลาตรวจวัดต่างกัน`;
       el("map-status").textContent = `${state.stations.length.toLocaleString("th-TH")} สถานี · ดูเวลารายจุด`;
       el("last-fetch").textContent = `ดึง ${fmtTime(state.fetchedAt)}`;
+      el("search-message").hidden = true;
     } catch (error) {
       state.error = error.message || "เชื่อมต่อไม่ได้";
       el("feed-state").textContent = "เชื่อมต่อข้อมูลไม่ได้";
@@ -158,14 +171,39 @@
       updateLocation(); renderList(); state.map?.flyTo(state.you, 12);
     }, () => { el("location-message").textContent = "ไม่ได้รับตำแหน่ง กรุณาอนุญาต GPS หรือปักหมุดบ้านเอง"; }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
   });
-  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
-    state.tab = button.dataset.tab;
-    document.querySelectorAll(".tab").forEach((tab) => { tab.classList.toggle("active", tab === button); tab.setAttribute("aria-selected", String(tab === button)); });
-    renderList();
-  }));
+  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => setTab(button.dataset.tab)));
   el("toggle-water").addEventListener("change", renderStations);
-  el("toggle-flood").addEventListener("change", () => { if (el("toggle-flood").checked) { state.tab = "flood"; document.querySelector('[data-tab="flood"]').click(); } });
+  el("flood-sources").addEventListener("click", () => openSection("flood"));
   el("toggle-camera").addEventListener("change", () => { renderCameras(); if (el("toggle-camera").checked) document.querySelector('[data-tab="camera"]').click(); });
+  el("map-locate").addEventListener("click", () => el("locate").click());
+  document.querySelectorAll("[data-quick]").forEach((button) => button.addEventListener("click", () => {
+    if (button.dataset.quick === "camera") { el("toggle-camera").checked = true; renderCameras(); }
+    if (button.dataset.quick === "water") { el("toggle-water").checked = true; renderStations(); }
+    openSection(button.dataset.quick);
+  }));
+  document.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => {
+    document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button));
+    const choice = button.dataset.nav;
+    if (choice === "locate") { el("locate").click(); document.querySelector(".map-panel").scrollIntoView({ behavior: "smooth" }); }
+    else if (choice === "map") document.querySelector(".map-panel").scrollIntoView({ behavior: "smooth" });
+    else openSection(choice);
+  }));
+  el("station-search").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const query = el("station-query").value.trim().toLocaleLowerCase("th");
+    const message = el("search-message");
+    message.hidden = false;
+    if (!query) { message.textContent = "พิมพ์ชื่อสถานีหรือจังหวัดก่อนค้นหา"; return; }
+    if (!state.stations.length) { message.textContent = "ข้อมูลสถานียังไม่พร้อม ลองรีเฟรชอีกครั้ง"; return; }
+    const matches = state.stations.filter((s) => `${s.name} ${s.province} ${s.river}`.toLocaleLowerCase("th").includes(query));
+    if (!matches.length) { message.textContent = "ไม่พบสถานีในข้อมูลล่าสุด ลองชื่อจังหวัดหรือคำใกล้เคียง"; return; }
+    matches.sort((a, b) => distanceKm(center(), [a.lat, a.lng]) - distanceKm(center(), [b.lat, b.lng]));
+    const match = matches[0];
+    el("toggle-water").checked = true; renderStations(); setTab("water");
+    state.map?.flyTo([match.lat, match.lng], 13);
+    state.layer?.eachLayer((marker) => { if (marker.getLatLng().lat === match.lat && marker.getLatLng().lng === match.lng) marker.openPopup(); });
+    message.textContent = `พบ ${matches.length} สถานี · แสดง ${match.name} (${match.province || "ไม่ระบุจังหวัด"})`;
+  });
   initMap(); renderList(); loadStations();
   setInterval(() => { if (!document.hidden) loadStations(); }, 120000);
 })();

@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
   try {
     const upstream = await fetch(SOURCE_URL, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(7000)
+      signal: AbortSignal.timeout(20000)
     });
     if (!upstream.ok) throw new Error(`ต้นทางตอบกลับ ${upstream.status}`);
     const payload = await upstream.json();

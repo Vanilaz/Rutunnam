@@ -33,7 +33,7 @@
 
           <div class="layers-heading"><span class="section-kicker">ข้อมูลบนแผนที่</span><span class="hint">เปิด / ปิด</span></div>
           <label class="layer-row"><span class="layer-icon blue"><svg viewBox="0 0 24 24"><path d="M3 15c3-3 5-3 8 0s5 3 10 0M3 9c3-3 5-3 8 0s5 3 10 0"/></svg></span><span class="layer-text"><strong>สถานีวัดน้ำ</strong><small id="station-count">กำลังโหลด</small></span><input id="toggle-water" type="checkbox" checked><span class="switch"></span></label>
-          <label class="layer-row"><span class="layer-icon amber"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5m0 3h.01"/></svg></span><span class="layer-text"><strong>พื้นที่น้ำท่วม</strong><small>ตรวจสอบบนแผนที่ GISTDA</small></span><input id="toggle-flood" type="checkbox" checked><span class="switch"></span></label>
+          <button class="layer-row layer-action" id="flood-sources" type="button"><span class="layer-icon amber"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5m0 3h.01"/></svg></span><span class="layer-text"><strong>ตรวจสอบน้ำท่วม</strong><small>เปิดแหล่งข้อมูล GISTDA และ กทม.</small></span><span class="action-arrow">↗</span></button>
           <label class="layer-row"><span class="layer-icon violet"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="15" height="12" rx="2"/><path d="m18 10 4-2v8l-4-2M7 3h7"/></svg></span><span class="layer-text"><strong>กล้อง CCTV</strong><small>จุดเปิดศูนย์กล้องในพื้นที่</small></span><input id="toggle-camera" type="checkbox" checked><span class="switch"></span></label>
 
           <div class="source-box"><span class="source-dot"></span><div><strong id="feed-state">กำลังเชื่อมต่อข้อมูล</strong><p id="feed-detail">กำลังตรวจสอบสถานีวัดน้ำล่าสุด</p></div></div>
@@ -42,7 +42,13 @@
 
         <section class="map-panel" aria-label="แผนที่สถานการณ์น้ำ">
           <div id="map" role="application" aria-label="แผนที่ประเทศไทย แสดงสถานีระดับน้ำและตำแหน่งของคุณ"></div>
+          <div class="map-explore">
+            <form id="station-search" class="map-search" role="search"><label class="sr-only" for="station-query">ค้นหาสถานีวัดน้ำหรือจังหวัด</label><input id="station-query" type="search" placeholder="ค้นหาสถานีหรือจังหวัด..." autocomplete="off"><button type="submit" aria-label="ค้นหาสถานี">ค้นหา</button></form>
+            <div id="search-message" class="search-message" role="status" hidden></div>
+            <div class="quick-filters" aria-label="ข้อมูลที่ต้องการดู"><button type="button" data-quick="water" class="selected">ระดับน้ำ</button><button type="button" data-quick="flood">น้ำท่วม ↗</button><button type="button" data-quick="camera">กล้อง CCTV</button></div>
+          </div>
           <div class="map-top"><div class="map-badge"><span class="pulse"></span><span id="map-status">กำลังโหลดสถานีวัดน้ำ</span></div><button id="recenter" class="map-tool" type="button" aria-label="กลับไปที่รังสิต" title="กลับไปที่รังสิต"><svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M2 12h4m12 0h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg></button></div>
+          <button id="map-locate" type="button" class="map-locate" aria-label="ไปที่ตำแหน่งฉัน">◎ <span>ตำแหน่งฉัน</span></button>
           <div class="map-legend"><span><i class="legend-dot teal"></i> สถานีวัดน้ำ</span><span><i class="legend-dot camera"></i> ศูนย์กล้อง (พิกัดพื้นที่)</span><span><i class="legend-dot navy"></i> บ้าน</span><span><i class="legend-dot purple"></i> ตำแหน่งฉัน</span></div>
           <div id="map-fallback" class="map-fallback" hidden>แผนที่โหลดไม่ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต <button onclick="location.reload()">ลองอีกครั้ง</button></div>
         </section>
@@ -54,6 +60,7 @@
           <div class="insights-footer"><span>รีเฟรชหน้าจอทุก 2 นาที</span><span id="last-fetch">ยังไม่มีข้อมูล</span></div>
         </aside>
       </div>
+      <nav class="mobile-nav" aria-label="เมนูหลัก"><button type="button" data-nav="map" class="active">⌖<span>แผนที่</span></button><button type="button" data-nav="water">≋<span>ระดับน้ำ</span></button><button type="button" data-nav="flood">△<span>น้ำท่วม</span></button><button type="button" data-nav="camera">▣<span>กล้อง</span></button><button type="button" data-nav="locate">◎<span>ตำแหน่ง</span></button></nav>
       <footer class="footer"><div><strong>รู้ทันน้ำ</strong><span>ต้นแบบแผนที่ข้อมูลน้ำสำหรับประชาชน</span></div><div>ข้อมูล: <a href="https://www.thaiwater.net/" target="_blank" rel="noopener noreferrer">ThaiWater</a> · <a href="https://disaster.gistda.or.th/flood" target="_blank" rel="noopener noreferrer">GISTDA</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></div></footer>
     </main>
   </div>
