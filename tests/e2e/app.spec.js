@@ -140,7 +140,8 @@ test.describe("cameras", () => {
     await page.goto("/");
     await openTab(page, "camera");
     await page.locator('[data-viewer="traffic:itic-video"]').click();
-    await expect.poll(() => page.evaluate(() => typeof (/** @type {any} */ (window)).Hls)).toBe("function");
+    // Downloaded from the real CDN on CI, so allow for network time.
+    await expect.poll(() => page.evaluate(() => typeof (/** @type {any} */ (window)).Hls), { timeout: 15000 }).toBe("function");
     // The mocked stream host is unreachable, so the viewer must say so instead of hanging.
     await expect(page.locator("#camera-viewer .viewer-message")).toContainText("วิดีโอจากกล้องนี้ไม่พร้อมใช้งาน");
     expect(net.pageErrors).toEqual([]);

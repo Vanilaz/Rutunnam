@@ -20,6 +20,8 @@ const MIRROR_FILES = {
   "cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js": "hls.min.js"
 };
 
+const CDN_HOSTS = new Set(["cdnjs.cloudflare.com", "unpkg.com", "cdn.jsdelivr.net"]);
+
 const TRAFFIC_CAMERAS = [
   { id: "itic-near", name: "แยกรังสิต", org: "กรมทางหลวง", lat: 13.99, lng: 100.62, image: "https://cam.example.go.th/near.jpg", hls: null },
   { id: "itic-video", name: "ทล.1 ขาเข้า", org: "กรมทางหลวง", lat: 14.02, lng: 100.63, image: null, hls: "https://camera1.iticfoundation.org/hls/test.stream/playlist.m3u8" },
@@ -104,7 +106,8 @@ async function netFixture({ page }, use) {
     if (mirrored) {
       return route.fulfill({ body: fs.readFileSync(path.join(/** @type {string} */ (MIRROR), mirrored)), contentType: pathname.endsWith(".css") ? "text/css" : "text/javascript", headers: CORS });
     }
-    if (host === "cdnjs.cloudflare.com" || host === "unpkg.com") return route.continue();
+    // Pinned CDNs the page loads scripts/styles from (see MAPLIBRE_ASSETS and HLS_JS_ASSET).
+    if (CDN_HOSTS.has(host)) return route.continue();
     if (host === "tiles.openfreemap.org" && pathname.startsWith("/styles/")) {
       return styleOk ? route.fulfill({ body: MIN_STYLE, contentType: "application/json", headers: CORS }) : route.abort();
     }
