@@ -96,6 +96,8 @@
 .traffic-cam-pin{width:24px;height:24px;border-radius:7px;background:#1d5fa8;color:#fff;border:2px solid #fff;display:grid;place-items:center;box-shadow:0 2px 8px #0004}
 .traffic-cam-pin svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .camera-popup .link-button{border:0;cursor:pointer;margin-top:8px}
+.camera-popup-image{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#e6edf0;border-radius:8px;margin:8px 0 4px}
+.camera-popup-status{display:block;color:#61788a;font-size:11px}
 
 .camera-viewer{border:0;border-radius:16px;padding:0;width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 24px);background:#0f1d2b;color:#fff;overflow:auto}
 .camera-viewer::backdrop{background:#0b1622d9}

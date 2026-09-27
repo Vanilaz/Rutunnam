@@ -1,6 +1,7 @@
 // Reservoirs: a pill showing storage % in the Royal Irrigation Department class colour.
 import { damStatus, DAM_STYLES } from "../reservoir.js";
 import { damPopupHtml } from "../templates.js";
+import { createViewportMarkers } from "./viewport-markers.js";
 
 /** @typedef {import("../types.js").Dam} Dam */
 
@@ -18,26 +19,9 @@ function damIcon(dam, status) {
 
 /** @param {L.Map} map */
 export function createDamsLayer(map) {
-  const group = L.layerGroup();
-  /** @type {Map<string, L.Marker>} */
-  const markers = new Map();
-  return {
-    /** @param {Dam[]} dams */
-    update(dams) {
-      const now = Date.now();
-      group.clearLayers();
-      markers.clear();
-      for (const dam of dams) {
-        const status = damStatus(dam, now);
-        const marker = L.marker([dam.lat, dam.lng], { icon: damIcon(dam, status), zIndexOffset: dam.size === "large" ? 350 : 150, title: dam.name })
-          .bindPopup(() => damPopupHtml(dam, damStatus(dam)))
-          .addTo(group);
-        markers.set(dam.id, marker);
-      }
-    },
-    /** @param {boolean} visible */
-    setVisible: (visible) => { if (visible) group.addTo(map); else map.removeLayer(group); },
-    /** @param {string} id */
-    markerFor: (id) => markers.get(id)
-  };
+  return createViewportMarkers(map,
+    /** @param {Dam} dam */
+    (dam) => L.marker([dam.lat, dam.lng], { icon: damIcon(dam, damStatus(dam)), zIndexOffset: dam.size === "large" ? 350 : 150, title: dam.name })
+      .bindPopup(() => damPopupHtml(dam, damStatus(dam))),
+    (dam, zoom) => dam.size === "large" || zoom >= 8);
 }

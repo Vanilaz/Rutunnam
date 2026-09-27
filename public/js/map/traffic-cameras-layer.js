@@ -14,18 +14,34 @@ export function createTrafficCamerasLayer(map, { onOpen }) {
   const group = L.layerGroup();
   /** @type {Map<string, L.Marker>} */
   const markers = new Map();
+  /** @type {ReturnType<typeof setInterval> | null} */
+  let refreshTimer = null;
+  const stopRefresh = () => { if (refreshTimer) clearInterval(refreshTimer); refreshTimer = null; };
+  map.on("popupclose", stopRefresh);
   return {
     /** @param {TrafficCamera[]} cameras */
     update(cameras) {
+      stopRefresh();
       group.clearLayers();
       markers.clear();
       for (const camera of cameras) {
         const kind = camera.hls ? "วิดีโอสด" : "ภาพนิ่งอัปเดตเป็นระยะ";
         const marker = L.marker([camera.lat, camera.lng], { icon, zIndexOffset: 200, title: camera.name })
-          .bindPopup(`<div class="camera-popup"><strong>${esc(camera.name)}</strong><small>${esc(camera.org || "กล้องจราจร")} · ${kind}</small><button type="button" class="link-button" data-open-traffic-camera>ดูกล้อง</button></div>`)
+          .bindPopup(`<div class="camera-popup"><strong>${esc(camera.name)}</strong><small>${esc(camera.org || "กล้องจราจร")} · ${kind}</small>${camera.image ? '<img class="camera-popup-image" alt="ภาพจากกล้อง" loading="lazy"><small class="camera-popup-status">กำลังโหลดภาพ...</small>' : '<small>แตะปุ่มเพื่อดูวิดีโอสด</small>'}<button type="button" class="link-button" data-open-traffic-camera>ดูภาพเต็มจอ</button></div>`, { minWidth: 250, maxWidth: 300 })
           .addTo(group);
         marker.on("popupopen", (event) => {
-          event.popup.getElement()?.querySelector("[data-open-traffic-camera]")?.addEventListener("click", () => onOpen(camera), { once: true });
+          stopRefresh();
+          const element = event.popup.getElement();
+          element?.querySelector("[data-open-traffic-camera]")?.addEventListener("click", () => onOpen(camera), { once: true });
+          const img = element?.querySelector(".camera-popup-image");
+          const status = element?.querySelector(".camera-popup-status");
+          if (img instanceof HTMLImageElement && camera.image) {
+            img.onload = () => { if (status) status.textContent = "ภาพล่าสุดจากกล้อง"; };
+            img.onerror = () => { if (status) status.textContent = "กล้องไม่ส่งภาพในขณะนี้"; img.style.display = "none"; };
+            const refresh = () => { if (!document.hidden && camera.image) img.src = `${camera.image}${camera.image.includes("?") ? "&" : "?"}t=${Date.now()}`; };
+            refresh();
+            refreshTimer = setInterval(refresh, 30000);
+          }
         });
         markers.set(camera.id, marker);
       }

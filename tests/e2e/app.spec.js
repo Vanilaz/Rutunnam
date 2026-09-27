@@ -126,6 +126,8 @@ test.describe("cameras", () => {
     await page.goto("/");
     await expect(page.locator("#traffic-camera-note")).toHaveText("iTIC · 3 กล้อง");
     await expect(page.locator(".traffic-cam-pin")).toHaveCount(3);
+    await page.locator(".traffic-cam-pin").first().click();
+    await expect(page.locator(".camera-popup-image")).toHaveAttribute("src", /near\.jpg\?t=\d+/);
     await openTab(page, "camera");
     const trafficCards = page.locator('[data-viewer^="traffic:"]');
     await expect(trafficCards).toHaveCount(3);
@@ -275,9 +277,9 @@ test.describe("water gates and dams", () => {
     await page.goto("/");
     await expect(page.locator("#gate-note")).toHaveText("ThaiWater · 2 แห่ง");
     await expect(page.locator("#dam-note")).toHaveText("ThaiWater · 2 แห่ง");
-    await expect(page.locator(".gate-pin")).toHaveCount(2);
-    await expect(page.locator(".dam-pin")).toHaveCount(2);
-    await expect(page.locator(".dam-pin.is-large")).toHaveText(/104%/);
+    // Off-screen infrastructure pins are created when the map moves there.
+    await expect(page.locator(".gate-pin")).toHaveCount(1);
+    await expect(page.locator(".dam-pin")).toHaveCount(0);
     await openTab(page, "gates");
     const gate = page.locator("[data-gate]").first();
     await expect(gate).toContainText("ปตร.คลองรังสิต");
@@ -288,6 +290,8 @@ test.describe("water gates and dams", () => {
     await expect(dams.nth(1)).toContainText("น้ำน้อย");
     await gate.click();
     await expect(page.locator(".leaflet-popup-content")).toContainText("น้ำด้านรับ 3.72 ม.");
+    await dams.first().click();
+    await expect(page.locator(".dam-pin.is-large")).toHaveText(/104%/);
     expect(net.pageErrors).toEqual([]);
   });
 
