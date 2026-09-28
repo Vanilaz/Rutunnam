@@ -14,6 +14,8 @@
  * @property {number | null} [storagePercent]  Level as % of channel depth, computed by ThaiWater.
  * @property {number | null} [criticalLevel]  m MSL.
  * @property {string | null} measuredAt  ISO timestamp from the source, or null.
+ * @property {number | null} [trendCm] Difference in cm since the prior observed reading in this browser.
+ * @property {string | null} [trendFrom] Timestamp of the prior observed reading.
  * @property {string} [sourceUrl]
  */
 

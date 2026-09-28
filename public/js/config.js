@@ -2,7 +2,7 @@
 
 // Must equal package.json "version" (checked by `npm run build`). The page reloads itself once
 // when /api/config reports a different version, so a phone never runs old JS against new HTML.
-export const APP_VERSION = "0.6.1";
+export const APP_VERSION = "0.6.2";
 /** @typedef {import("./types.js").Camera} Camera */
 
 /** @type {import("./types.js").LatLngTuple} */
@@ -46,7 +46,7 @@ export const DAM_STALE_MS = 3 * 24 * HOUR_MS;
 export const DAM_CLASSES = Object.freeze({ overAbove: 100, highAbove: 80, lowAtOrBelow: 50, criticalAtOrBelow: 30 });
 export const TRAFFIC_CAMERA_PAGE_SIZE = 12;
 export const THUMBNAIL_REFRESH_MS = 60 * 1000;
-export const THUMBNAIL_TIMEOUT_MS = 20 * 1000;
+export const THUMBNAIL_TIMEOUT_MS = 8 * 1000;
 export const TRAFFIC_CAMERA_REFRESH_MS = 15 * 1000;
 export const TRAFFIC_CAMERA_SOURCE = Object.freeze({ url: "https://traffic.longdo.com/", label: "iTIC · Longdo Traffic" });
 
@@ -74,13 +74,15 @@ export const MAPLIBRE_ASSETS = Object.freeze({
 /** @type {ReadonlyArray<Readonly<Camera>>} */
 export const CAMERA_SOURCES = Object.freeze([
   { id: "nont-pier", name: "ท่าน้ำนนท์ · แม่น้ำเจ้าพระยา", area: "แม่น้ำเจ้าพระยา · นนทบุรี", lat: 13.842, lng: 100.492, url: "https://cctv-nont.firsttech.co.th/", hls: "https://stream.firsttech.co.th/live/nakornnont.stream/playlist.m3u8", source: "เทศบาลนครนนทบุรี" },
+  { id: "pathum-city", name: "เมืองปทุม · แม่น้ำเจ้าพระยา", area: "เมืองปทุมธานี · พิกัดพื้นที่โดยประมาณ", lat: 14.022, lng: 100.526, url: "https://cdp.rangsitcity.go.th/", image: "https://cdp.rangsitcity.go.th/api/flood/snapshot/152", refreshMs: 10 * 1000, source: "Rangsit CDP" },
+  { id: "rangsit-red-bridge", name: "สะพานแดง · คลองรังสิต", area: "คลองรังสิตประยูรศักดิ์ · พิกัดพื้นที่โดยประมาณ", lat: 13.986, lng: 100.616, url: "https://cdp.rangsitcity.go.th/", image: "https://cdp.rangsitcity.go.th/api/flood/snapshot/151", refreshMs: 10 * 1000, source: "Rangsit CDP" },
   { id: "dds1", name: "บางเขนใหม่", area: "คลอง · กรุงเทพมหานคร", lat: 13.8712025, lng: 100.6009522, url: "https://dds.bangkok.go.th/cctv1.php", image: "https://dds.bangkok.go.th/cctv-image/cctv1.jpg" },
   { id: "dds2", name: "สะพานพระปิ่นเกล้า", area: "แม่น้ำเจ้าพระยา", lat: 13.7638088, lng: 100.4880244, url: "https://dds.bangkok.go.th/cctv2.php", image: "https://dds.bangkok.go.th/cctv-image/cctv2.jpg" },
   { id: "dds3", name: "บางนา", area: "คลอง · กรุงเทพมหานคร", lat: 13.66605, lng: 100.5814148, url: "https://dds.bangkok.go.th/cctv3.php", image: "https://dds.bangkok.go.th/cctv-image/cctv3.jpg" },
   { id: "dds4", name: "คลองสวนแดน 1", area: "คลอง · นครปฐม", lat: 13.8504178, lng: 100.2143995, url: "https://dds.bangkok.go.th/cctv4.php", image: "https://dds.bangkok.go.th/cctv-image/cctv4.jpg" },
   { id: "dds5", name: "คลองชักพระ", area: "คลอง · กรุงเทพมหานคร", lat: 13.7626065, lng: 100.4419398, url: "https://dds.bangkok.go.th/cctv5.php", image: "https://dds.bangkok.go.th/cctv-image/cctv5.jpg" },
   { id: "dds6", name: "คลองทวีวัฒนา", area: "คลอง · กรุงเทพมหานคร", lat: 13.7471152, lng: 100.3203025, url: "https://dds.bangkok.go.th/cctv6.php", image: "https://dds.bangkok.go.th/cctv-image/cctv6.jpg" },
-  { id: "rangsit-water", name: "ท่าน้ำสะพานแดง · ระดับน้ำรังสิต", area: "คลองรังสิตประยูรศักดิ์ · พิกัดพื้นที่โดยประมาณ", lat: 13.986, lng: 100.616, url: "https://rangsitcity.go.th/cctvrangsitcity/", image: "https://www.ipcamlive.com/player/snapshot.php?alias=6ab688b9f0f7d", refreshMs: 2 * MINUTE_MS, source: "เทศบาลนครรังสิต" },
+  { id: "pathum-park", name: "สวนเทพปทุมฯ · CCTV ระดับน้ำ", area: "ริมเจ้าพระยา · เมืองปทุมธานี · พิกัดโดยประมาณ", lat: 14.021, lng: 100.525, url: "https://www.muangpathum.org/th/z_main.jsp", note: "เทศบาลเมืองปทุมธานีระบุกล้องจุดนี้ แต่ยังตรวจยืนยันภาพสดผ่าน HTTPS ไม่ได้ เปิดต้นทางเพื่อตรวจสถานะ", directory: true },
   { id: "rangsit", name: "กล้องจราจรเทศบาลนครรังสิต", area: "รังสิต ปทุมธานี", lat: 13.982, lng: 100.621, url: "https://rangsitcity.go.th/cctvrangsitcity/", note: "มีกล้องจราจรหลายจุดบนเว็บไซต์เทศบาล ลิงก์บางกล้องเป็น HTTP จึงเปิดภาพตรงบนเว็บ HTTPS ไม่ได้", directory: true },
   { id: "rid", name: "ศูนย์กล้องลุ่มน้ำเจ้าพระยา", area: "ลุ่มน้ำเจ้าพระยา", lat: 14.35, lng: 100.45, url: "https://wmsc.rid.go.th/cctv2/", note: "เว็บไซต์กรมชลประทานระบุว่ารองรับ Firefox", directory: true },
   { id: "pakkret", name: "กล้องถนนปากเกร็ด", area: "ปากเกร็ด · นนทบุรี", lat: 13.913, lng: 100.499, url: "https://www.thaiclouderp.com/CCTV_MONITOR/web/pakkred", note: "ศูนย์กล้องจราจรของเทศบาลนครปากเกร็ด · ดูภาพรายจุดบนเว็บต้นทาง", directory: true },

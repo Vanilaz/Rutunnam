@@ -22,6 +22,8 @@ import { startClock } from "./ui/clock.js";
 import { byId, required } from "./ui/dom.js";
 import { createStatusView } from "./ui/status.js";
 import { createListPanel } from "./ui/list-panel.js";
+import { withWaterTrends } from "./water-trends.js";
+import { probeCameras } from "./camera-availability.js";
 
 /** @typedef {import("./types.js").Station} Station */
 /** @typedef {import("./types.js").RoadFlood} RoadFlood */
@@ -100,6 +102,9 @@ const state = {
   floodError: false,
   /** @type {TrafficCamera[] | null} null until the first successful load */
   trafficCameras: null,
+  /** @type {TrafficCamera[]} */
+  workingTrafficCameras: [],
+  cameraChecked: 0,
   /** @type {string | null} */
   trafficCameraError: null,
   trafficCameraLimit: TRAFFIC_CAMERA_PAGE_SIZE,
@@ -190,14 +195,16 @@ function cameraView() {
   const km = (point) => distanceKm(from, [point.lat, point.lng]);
   const provinces = [...new Set((state.trafficCameras ?? []).map((camera) => camera.name.match(/^\((?:จ\.)?([^)]*)\)/)?.[1] || "").filter((name) => name.length > 0))].sort((a, b) => a.localeCompare(b, "th"));
   const traffic = state.trafficCameras
-    ? state.trafficCameras.filter((camera) => !state.cameraProvince || camera.name.startsWith(`(จ.${state.cameraProvince})`) || camera.name.startsWith(`(${state.cameraProvince})`))
+    ? state.workingTrafficCameras.filter((camera) => !state.cameraProvince || camera.name.startsWith(`(จ.${state.cameraProvince})`) || camera.name.startsWith(`(${state.cameraProvince})`))
       .map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance)
     : null;
   return {
     water: WATER_CAMERAS.map((camera) => ({ camera, distance: km(camera) })).sort((a, b) => a.distance - b.distance),
     directories: CAMERA_DIRECTORIES,
     traffic: traffic ? traffic.slice(0, state.trafficCameraLimit) : null,
-    trafficTotal: state.trafficCameras?.length ?? 0,
+    trafficTotal: state.workingTrafficCameras.length,
+    trafficChecked: state.cameraChecked,
+    trafficCandidates: state.trafficCameras?.length ?? 0,
     provinceTotal: provinces.length,
     provinces,
     selectedProvince: state.cameraProvince,
@@ -254,7 +261,7 @@ function refreshThumbnails() {
     const setBadge = (text, className) => { if (badge) { badge.textContent = text; badge.className = `cam-badge ${className}`; } };
     // Some camera hosts never answer; do not leave "กำลังโหลด" up forever.
     const timeout = setTimeout(() => { if (!img.complete || !img.naturalWidth) setBadge("ไม่ตอบสนอง", "is-offline"); }, THUMBNAIL_TIMEOUT_MS);
-    img.onload = () => { clearTimeout(timeout); setBadge("สด", "is-live"); };
+    img.onload = () => { clearTimeout(timeout); setBadge(img.naturalWidth >= 64 ? "ภาพพร้อม" : "ภาพผิดปกติ", img.naturalWidth >= 64 ? "is-live" : "is-offline"); };
     img.onerror = () => { clearTimeout(timeout); setBadge("ไม่มีสัญญาณ", "is-offline"); };
     img.src = `${base}${base.includes("?") ? "&" : "?"}t=${Date.now()}`;
   });
@@ -435,7 +442,7 @@ function renderSummary() {
   ui.kpi.high.textContent = hasData ? formatCount(risky.length - overflow) : "–";
   ui.kpi.overflow.closest(".kpi")?.classList.toggle("is-alert", overflow > 0);
   ui.kpi.roads.textContent = state.roadFloods ? formatCount(state.roadFloods.length) : "–";
-  ui.kpi.cameras.textContent = formatCount(WATER_CAMERAS.length + (state.trafficCameras?.length ?? 0));
+  ui.kpi.cameras.textContent = formatCount(WATER_CAMERAS.length + state.workingTrafficCameras.length);
   ui.navRiskBadge.hidden = overflow === 0;
   ui.navRiskBadge.textContent = overflow > 99 ? "99+" : String(overflow);
   ui.updatedAt.textContent = fmtClock(state.fetchedAt);
@@ -478,7 +485,7 @@ async function loadStations() {
   status.loading();
   try {
     const data = await fetchStations();
-    Object.assign(state, { stations: data.stations, fetchedAt: data.fetchedAt, error: data.warning });
+    Object.assign(state, { stations: withWaterTrends(state.stations, data.stations), fetchedAt: data.fetchedAt, error: data.warning });
     saveCachedStations(state.stations, data.fetchedAt);
     if (data.warning) status.failed(state.stations.length, state.fetchedAt);
     else status.loaded(state.stations.length, state.fetchedAt);
@@ -514,10 +521,30 @@ async function loadRoadFloods() {
 
 async function loadTrafficCameras() {
   try {
-    state.trafficCameras = await fetchTrafficCameras();
+    const candidates = await fetchTrafficCameras();
+    state.trafficCameras = candidates;
+    state.workingTrafficCameras = [];
+    state.cameraChecked = 0;
     state.trafficCameraError = null;
-    trafficCamerasLayer?.update(state.trafficCameras);
-    ui.trafficCameraNote.textContent = `iTIC · ${formatCount(state.trafficCameras.length)} กล้อง`;
+    trafficCamerasLayer?.update([]);
+    ui.trafficCameraNote.textContent = `iTIC · กำลังตรวจภาพ ${formatCount(candidates.length)} จุด`;
+    renderList();
+    let refreshTimer = /** @type {ReturnType<typeof setTimeout> | null} */ (null);
+    const refresh = () => {
+      trafficCamerasLayer?.update(state.workingTrafficCameras);
+      ui.trafficCameraNote.textContent = `iTIC · ภาพพร้อม ${formatCount(state.workingTrafficCameras.length)} / ตรวจแล้ว ${formatCount(state.cameraChecked)} จุด`;
+      renderRiskCount();
+      renderList();
+      refreshTimer = null;
+    };
+    await probeCameras(candidates, (camera, ok) => {
+      if (state.trafficCameras !== candidates) return;
+      state.cameraChecked++;
+      if (ok) state.workingTrafficCameras.push(camera);
+      if (!refreshTimer) refreshTimer = setTimeout(refresh, 1500);
+    }, THUMBNAIL_TIMEOUT_MS);
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refresh();
   } catch (error) {
     state.trafficCameraError = error instanceof Error && error.message ? error.message : "โหลดรายชื่อกล้องจราจรไม่ได้";
     ui.trafficCameraNote.textContent = "iTIC · โหลดไม่ได้";
