@@ -6,7 +6,7 @@ const path = require("node:path");
 process.env.NODE_ENV ??= "development";
 const root = path.join(__dirname, "public");
 const port = Number(process.env.PORT) || 3000;
-const apiRoutes = new Set(["/api/water", "/api/flood", "/api/config", "/api/road-flood", "/api/flood-wms", "/api/traffic-cameras", "/api/water-gates", "/api/dams"]);
+const apiRoutes = new Set(["/api/water", "/api/flood", "/api/config", "/api/road-flood", "/api/flood-wms", "/api/traffic-cameras", "/api/water-gates", "/api/dams", "/api/camera-snapshot"]);
 /** @type {Record<string, string>} */
 const types = {
   ".html": "text/html; charset=utf-8",

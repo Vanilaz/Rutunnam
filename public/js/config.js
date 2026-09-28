@@ -2,7 +2,7 @@
 
 // Must equal package.json "version" (checked by `npm run build`). The page reloads itself once
 // when /api/config reports a different version, so a phone never runs old JS against new HTML.
-export const APP_VERSION = "0.6.2";
+export const APP_VERSION = "0.6.3";
 /** @typedef {import("./types.js").Camera} Camera */
 
 /** @type {import("./types.js").LatLngTuple} */
@@ -74,8 +74,8 @@ export const MAPLIBRE_ASSETS = Object.freeze({
 /** @type {ReadonlyArray<Readonly<Camera>>} */
 export const CAMERA_SOURCES = Object.freeze([
   { id: "nont-pier", name: "ท่าน้ำนนท์ · แม่น้ำเจ้าพระยา", area: "แม่น้ำเจ้าพระยา · นนทบุรี", lat: 13.842, lng: 100.492, url: "https://cctv-nont.firsttech.co.th/", hls: "https://stream.firsttech.co.th/live/nakornnont.stream/playlist.m3u8", source: "เทศบาลนครนนทบุรี" },
-  { id: "pathum-city", name: "เมืองปทุม · แม่น้ำเจ้าพระยา", area: "เมืองปทุมธานี · พิกัดพื้นที่โดยประมาณ", lat: 14.022, lng: 100.526, url: "https://cdp.rangsitcity.go.th/", image: "https://cdp.rangsitcity.go.th/api/flood/snapshot/152", refreshMs: 10 * 1000, source: "Rangsit CDP" },
-  { id: "rangsit-red-bridge", name: "สะพานแดง · คลองรังสิต", area: "คลองรังสิตประยูรศักดิ์ · พิกัดพื้นที่โดยประมาณ", lat: 13.986, lng: 100.616, url: "https://cdp.rangsitcity.go.th/", image: "https://cdp.rangsitcity.go.th/api/flood/snapshot/151", refreshMs: 10 * 1000, source: "Rangsit CDP" },
+  { id: "pathum-city", name: "เมืองปทุม · แม่น้ำเจ้าพระยา", area: "เมืองปทุมธานี · พิกัดพื้นที่โดยประมาณ", lat: 14.022, lng: 100.526, url: "https://cdp.rangsitcity.go.th/", image: "/api/camera-snapshot?id=152", refreshMs: 10 * 1000, source: "Rangsit CDP" },
+  { id: "rangsit-red-bridge", name: "สะพานแดง · คลองรังสิต", area: "คลองรังสิตประยูรศักดิ์ · พิกัดพื้นที่โดยประมาณ", lat: 13.986, lng: 100.616, url: "https://cdp.rangsitcity.go.th/", image: "/api/camera-snapshot?id=151", refreshMs: 10 * 1000, source: "Rangsit CDP" },
   { id: "dds1", name: "บางเขนใหม่", area: "คลอง · กรุงเทพมหานคร", lat: 13.8712025, lng: 100.6009522, url: "https://dds.bangkok.go.th/cctv1.php", image: "https://dds.bangkok.go.th/cctv-image/cctv1.jpg" },
   { id: "dds2", name: "สะพานพระปิ่นเกล้า", area: "แม่น้ำเจ้าพระยา", lat: 13.7638088, lng: 100.4880244, url: "https://dds.bangkok.go.th/cctv2.php", image: "https://dds.bangkok.go.th/cctv-image/cctv2.jpg" },
   { id: "dds3", name: "บางนา", area: "คลอง · กรุงเทพมหานคร", lat: 13.66605, lng: 100.5814148, url: "https://dds.bangkok.go.th/cctv3.php", image: "https://dds.bangkok.go.th/cctv-image/cctv3.jpg" },
