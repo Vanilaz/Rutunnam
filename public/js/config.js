@@ -2,7 +2,7 @@
 
 // Must equal package.json "version" (checked by `npm run build`). The page reloads itself once
 // when /api/config reports a different version, so a phone never runs old JS against new HTML.
-export const APP_VERSION = "0.7.1";
+export const APP_VERSION = "0.8.0";
 /** @typedef {import("./types.js").Camera} Camera */
 
 /** @type {import("./types.js").LatLngTuple} */
@@ -61,6 +61,38 @@ export const TRAFFIC_CAMERA_SOURCE = Object.freeze({ url: "https://traffic.longd
 // Pinned and SRI-checked against the npm tarball; loaded only when a video is opened.
 export const HLS_JS_ASSET = Object.freeze({ src: "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js", integrity: "sha384-cciJ0zi8d1uMKC2zJd7jvPY4HQt7W4ByUI/FlMkltvBi31aW61rcpVBhpmW8/NwX" });
 export const THAIWATER_URL = "https://www.thaiwater.net/";
+
+// Rain radar mosaic (RainViewer public API). The index lists recent frames; tiles are PNG.
+// Free tiles are only rendered up to zoom 7, so Leaflet upscales beyond that.
+export const RAIN_RADAR = Object.freeze({
+  indexUrl: "https://api.rainviewer.com/public/weather-maps.json",
+  tileSize: 256,
+  colorScheme: 2,       // "Universal Blue"
+  smoothAndSnow: "1_1", // smoothed, snow colours on
+  maxNativeZoom: 7,
+  opacity: 0.6,
+  refreshMs: 10 * MINUTE_MS,
+  staleMs: 30 * MINUTE_MS,
+  attribution: '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">RainViewer</a>'
+});
+export const TMD_RADAR_URL = "https://weather.tmd.go.th/";
+
+/**
+ * Hotlines shown in the warning and flood pages. `urgent` marks life-safety numbers.
+ * @type {ReadonlyArray<Readonly<{ number: string, label: string, urgent: boolean }>>}
+ */
+export const EMERGENCY_CONTACTS = Object.freeze([
+  { number: "1784", label: "สายด่วนนิรภัย ปภ.", urgent: true },
+  { number: "1669", label: "เจ็บป่วยฉุกเฉิน", urgent: true },
+  { number: "191", label: "เหตุด่วนเหตุร้าย", urgent: true },
+  { number: "199", label: "ดับเพลิง กู้ภัย", urgent: true },
+  { number: "1555", label: "กรุงเทพมหานคร", urgent: false },
+  { number: "1460", label: "กรมชลประทาน", urgent: false },
+  { number: "1130", label: "การไฟฟ้านครหลวง", urgent: false },
+  { number: "1129", label: "การไฟฟ้าส่วนภูมิภาค", urgent: false },
+  { number: "1182", label: "กรมอุตุนิยมวิทยา", urgent: false },
+  { number: "1586", label: "กรมทางหลวง", urgent: false }
+].map((contact) => Object.freeze(contact)));
 
 export const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 export const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';

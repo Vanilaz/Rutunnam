@@ -37,14 +37,14 @@ export function loadHome() {
 export const saveHome = (home) => write(STORAGE_KEYS.home, home);
 
 /** Layers that start switched on when a key is configured, unless this viewer turned them off. */
-/** @typedef {"flood" | "traffic"} OptionalLayer */
+/** @typedef {"flood" | "traffic" | "radar"} OptionalLayer */
 
 /** @returns {Partial<Record<OptionalLayer, boolean>>} */
 function loadLayerPrefs() {
   const saved = read(STORAGE_KEYS.layers);
   /** @type {Partial<Record<OptionalLayer, boolean>>} */
   const prefs = {};
-  for (const layer of /** @type {OptionalLayer[]} */ (["flood", "traffic"])) {
+  for (const layer of /** @type {OptionalLayer[]} */ (["flood", "traffic", "radar"])) {
     if (typeof saved?.[layer] === "boolean") prefs[layer] = saved[layer];
   }
   return prefs;

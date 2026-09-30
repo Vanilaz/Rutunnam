@@ -2,7 +2,7 @@
 import { APP_VERSION, THUMBNAIL_TIMEOUT_MS, CAMERA_SOURCES, DAM_LIST_LIMIT, DAM_REFRESH_MS, DEFAULT_CAMERA_REFRESH_MS, GATE_LIST_LIMIT, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, LIVE_GRID_MAX_STREAMS, LIVE_START_TIMEOUT_MS, LIVE_RETRY_AFTER_MS, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
 import { fetchDams, fetchLayerConfig, fetchRoadFloods, fetchStations, fetchTrafficCameras, fetchWaterGates, NO_OPTIONAL_LAYERS } from "./api.js";
 import { isLayerWanted, loadCachedStations, loadHome, saveCachedStations, saveHome, saveLayerPref } from "./storage.js";
-import { age, distanceKm, fmtClock, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
+import { age, distanceKm, fmtClock, fmtTime, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
 import { riskyStations } from "./risk.js";
 import { rankDams } from "./reservoir.js";
 import { alertBannerHtml, cameraTabHtml, floodTabHtml, gatesTabHtml, riskTabHtml, roadTabHtml, waterTabHtml } from "./templates.js";
@@ -12,6 +12,7 @@ import { createStationsLayer } from "./map/stations-layer.js";
 import { createCamerasLayer } from "./map/cameras-layer.js";
 import { createLocationLayer } from "./map/location-layer.js";
 import { createFloodLayer } from "./map/flood-layer.js";
+import { createRadarLayer } from "./map/radar-layer.js";
 import { createTrafficLayer } from "./map/traffic-layer.js";
 import { createRoadFloodLayer } from "./map/road-flood-layer.js";
 import { createTrafficCamerasLayer } from "./map/traffic-cameras-layer.js";
@@ -50,6 +51,8 @@ const ui = {
   toggleFlood: byId("toggle-flood", HTMLInputElement),
   toggleRoadFlood: byId("toggle-road-flood", HTMLInputElement),
   toggleTraffic: byId("toggle-traffic", HTMLInputElement),
+  toggleRadar: byId("toggle-radar", HTMLInputElement),
+  radarNote: byId("radar-note"),
   toggleCamera: byId("toggle-camera", HTMLInputElement),
   mapStyle: byId("map-style", HTMLSelectElement),
   locationMessage: byId("location-message"),
@@ -101,6 +104,8 @@ const state = {
   roadUnsupported: false,
   roadLoading: false,
   floodError: false,
+  /** @type {{ time: number | null, error: string | null }} newest radar frame shown on the map */
+  radar: { time: null, error: null },
   /** @type {TrafficCamera[] | null} null until the first successful load */
   trafficCameras: null,
   /** @type {TrafficCamera[]} */
@@ -149,6 +154,18 @@ const roadFloodLayer = map && createRoadFloodLayer(map);
 const waterGatesLayer = map && createWaterGatesLayer(map);
 const damsLayer = map && createDamsLayer(map);
 const trafficCamerasLayer = map && createTrafficCamerasLayer(map, { onOpen: (camera) => openViewer(trafficViewerCamera(camera)) });
+const radarLayer = map && createRadarLayer(map, {
+  onFrame(frame) {
+    state.radar = { time: frame.time, error: null };
+    ui.radarNote.textContent = `RainViewer · ภาพเวลา ${fmtTime(new Date(frame.time).toISOString())}`;
+    renderList();
+  },
+  onError(message) {
+    state.radar = { ...state.radar, error: message };
+    ui.radarNote.textContent = "RainViewer · โหลดไม่ได้";
+    renderList();
+  }
+});
 /** @type {ReturnType<typeof createFloodLayer> | null} */
 let floodLayer = null;
 /** @type {ReturnType<typeof createTrafficLayer> | null} */
@@ -187,7 +204,8 @@ function floodView() {
       ? state.roadFloods.map((report) => ({ report, distance: distanceKm(from, [report.lat, report.lng]) })).sort((a, b) => a.distance - b.distance)
       : null,
     roadError: state.roadError,
-    roadUnsupported: state.roadUnsupported
+    roadUnsupported: state.roadUnsupported,
+    radar: { on: ui.toggleRadar.checked, time: state.radar.time, error: state.radar.error }
   };
 }
 
@@ -358,6 +376,7 @@ const listPanel = createListPanel(byId("tab-content"), {
   },
   onAction(action) {
     if (action === "retry") loadStations();
+    else if (action === "toggle-radar") { setToggle(ui.toggleRadar, !ui.toggleRadar.checked); saveLayerPref("radar", ui.toggleRadar.checked); }
     else if (action === "toggle-traffic") { setToggle(ui.toggleTraffic, !ui.toggleTraffic.checked); saveLayerPref("traffic", ui.toggleTraffic.checked); }
     else if (action === "toggle-flood") { setToggle(ui.toggleFlood, !ui.toggleFlood.checked); saveLayerPref("flood", ui.toggleFlood.checked); }
     else if (action === "toggle-risk-only") setToggle(ui.toggleRiskOnly, !ui.toggleRiskOnly.checked);
@@ -638,6 +657,12 @@ ui.toggleRiskOnly.addEventListener("change", () => {
 });
 ui.toggleFlood.addEventListener("change", () => { floodLayer?.setVisible(ui.toggleFlood.checked); renderList(); });
 ui.toggleTraffic.addEventListener("change", () => { trafficLayer?.setVisible(ui.toggleTraffic.checked); renderList(); });
+ui.toggleRadar.addEventListener("change", () => {
+  if (!ui.toggleRadar.checked) { state.radar = { time: null, error: null }; ui.radarNote.textContent = "RainViewer · ปิดอยู่"; }
+  radarLayer?.setVisible(ui.toggleRadar.checked);
+  renderList();
+});
+ui.toggleRadar.addEventListener("input", () => saveLayerPref("radar", ui.toggleRadar.checked));
 // Remember only choices the viewer made by hand; code-driven toggles (setToggle) do not count.
 ui.toggleFlood.addEventListener("input", () => saveLayerPref("flood", ui.toggleFlood.checked));
 ui.toggleTraffic.addEventListener("input", () => saveLayerPref("traffic", ui.toggleTraffic.checked));
@@ -750,6 +775,8 @@ if (state.stations.length) {
 }
 roadFloodLayer?.setVisible(ui.toggleRoadFlood.checked);
 trafficCamerasLayer?.setVisible(ui.toggleTrafficCameras.checked);
+// Rain radar starts on (it needs no key) unless this viewer switched it off before.
+if (radarLayer && isLayerWanted("radar")) setToggle(ui.toggleRadar, true);
 waterGatesLayer?.setVisible(ui.toggleGates.checked);
 damsLayer?.setVisible(ui.toggleDams.checked);
 setView("map");
@@ -768,6 +795,7 @@ mobileQuery.addEventListener("change", () => { if (!mobileQuery.matches) setView
 // Background tabs skip the interval, so catch up as soon as the page is visible again.
 document.addEventListener("visibilitychange", () => {
   syncLiveGrid();
+  if (!document.hidden && ui.toggleRadar.checked) radarLayer?.refresh();
   if (document.hidden || age(state.fetchedAt) < STATION_REFRESH_MS) return;
   loadStations();
   loadRoadFloods();
