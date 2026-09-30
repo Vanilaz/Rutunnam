@@ -107,3 +107,41 @@ h1{font-size:clamp(30px,3.2vw,48px);letter-spacing:-.05em;margin:5px 0}h1 em{col
 .traffic-grid .cam-card:has(.cam-badge.is-offline) .cam-thumb img{visibility:hidden}
 .traffic-grid .cam-card:has(.cam-badge.is-offline) .cam-badge{background:#526c78}
 .traffic-grid .cam-card:hover{border-color:#69aaa9;background:#eef9f6}
+/* v0.7.0 — live camera list (ui/live-grid.js): big live cards, then compact tiles by distance. */
+.cam-grid.cam-heroes{display:grid;grid-template-columns:1fr;gap:12px}
+.cam-grid.cam-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:12px}
+.cam-grid.cam-water{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cam-card{background:#0d1b26;border:0;color:#fff}
+.cam-card.cam-hero{aspect-ratio:16/9;border-radius:16px;box-shadow:0 8px 22px #0a2a3a33}
+.cam-card.cam-tile{aspect-ratio:16/10;border-radius:12px}
+.cam-thumb{background:#14222d}
+.cam-thumb img{transition:opacity .25s}
+.cam-live{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:transparent;opacity:0;transition:opacity .3s;pointer-events:none}
+.cam-card.is-playing .cam-live{opacity:1}
+.cam-card.is-playing .cam-thumb img{opacity:0}
+.cam-card.is-streaming .cam-placeholder{display:none}
+.cam-card.is-offline .cam-thumb img{opacity:.35}
+.cam-placeholder{width:42px;height:42px;border-radius:50%;background:#ffffff26;display:grid;place-items:center;font-size:15px;color:#fff;padding-left:3px;backdrop-filter:blur(4px)}
+.cam-tile .cam-placeholder{width:34px;height:34px;font-size:12px}
+.cam-badge{z-index:2;left:auto;right:8px;top:8px;background:#0b1720d9;color:#fff;border-radius:999px;padding:4px 10px;font:700 11px Manrope,'IBM Plex Sans Thai',sans-serif;letter-spacing:.2px;max-width:calc(100% - 16px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cam-badge[hidden]{display:none}
+.cam-hero .cam-badge{right:12px;top:12px;padding:6px 12px;font-size:12px}
+.cam-badge.is-live{background:#0b1720e6}
+.cam-badge.is-live::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff3b30;margin-right:6px;vertical-align:0;animation:live-dot 1.4s ease-in-out infinite}
+.cam-badge.is-offline{background:#7a2334e6}
+.cam-badge.is-idle{background:#0b1720b3}
+.cam-caption{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:26px 10px 8px;background:linear-gradient(transparent,#000c)}
+.cam-title{min-width:0;display:block}
+.cam-title strong,.cam-title small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cam-distance{flex:none;font:700 11px Manrope,'IBM Plex Sans Thai',sans-serif;opacity:.9}
+.cam-hero .cam-caption{padding:44px 16px 13px}
+.cam-hero .cam-title strong{font-size:17px}.cam-hero .cam-title small{font-size:12px;opacity:.8;margin-top:2px}
+.cam-hero .cam-distance{font-size:14px}
+.cam-tile .cam-title strong{font-size:11px}.cam-tile .cam-title small{display:none}.cam-tile .cam-distance{font-size:10px}
+.cam-tile .cam-caption{padding:18px 7px 6px}
+.cam-tile .cam-badge{right:5px;top:5px;padding:2px 7px;font-size:10px}
+.live-heading strong{display:flex;align-items:center;gap:7px;font-size:15px}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#ff3b30;box-shadow:0 0 0 4px #ff3b3026}
+.band-heading{font-size:12px;font-weight:700;color:#6b8491;margin:14px 4px 8px}
+@keyframes live-dot{50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.cam-badge.is-live::before{animation:none}.cam-live,.cam-thumb img{transition:none}}

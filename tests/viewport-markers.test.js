@@ -33,7 +33,7 @@ test("infrastructure markers are created only in view and focused pins remain re
   let created = 0;
   const layer = createViewportMarkers(map, (item) => {
     created++;
-    return { id: item.id, addTo(group) { group.addLayer(this); return this; } };
+    return { id: item.id, popupOpen: false, isPopupOpen() { return this.popupOpen; }, addTo(group) { group.addLayer(this); return this; } };
   }, (item, scale) => item.large || scale >= 8);
   try {
     layer.setVisible(true);
@@ -53,6 +53,21 @@ test("infrastructure markers are created only in view and focused pins remain re
     zoom = 11;
     handlers.get("moveend")();
     assert.equal(created, 3, "moving into view creates only newly visible pins");
+
+    // A list click flies the map; a moveend fired before the flight lands (e.g. the phone map
+    // becoming visible) must not drop the pin the popup is about to open on.
+    const target = layer.markerFor("near");
+    bounds = [0, 1, 0, 1];
+    handlers.get("moveend")();
+    assert.equal(layer.markerFor("near"), target, "the focused pin survives an early moveend");
+    // An open popup keeps its pin too, even after focus moves elsewhere.
+    target.popupOpen = true;
+    const far = layer.markerFor("far");
+    const before = created;
+    handlers.get("moveend")();
+    assert.equal(layer.markerFor("near"), target, "the pin with an open popup stays");
+    assert.equal(layer.markerFor("far"), far, "the newly focused pin stays");
+    assert.equal(created, before, "no pin was recreated");
     layer.setVisible(false);
     assert.equal(attached.size, 0);
   } finally {

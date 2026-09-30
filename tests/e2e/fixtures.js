@@ -6,6 +6,11 @@ const path = require("node:path");
 const { test: base, expect } = require("@playwright/test");
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+// Camera frames must look like a real picture (the app rejects frames narrower than 64 px).
+const FRAME = '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="120"><rect width="160" height="120" fill="#4a6b7c"/></svg>';
+// A playlist header with no media: passes the availability probe, then hls.js fails fast on it.
+const EMPTY_PLAYLIST = "#EXTM3U\n";
+const STREAM_HOSTS = new Set(["camera1.iticfoundation.org", "stream.firsttech.co.th"]);
 const MIN_STYLE = JSON.stringify({ version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#dde6ea" } }] });
 const CORS = { "Access-Control-Allow-Origin": "*" };
 
@@ -33,7 +38,7 @@ const DAMS = () => [
 const CDN_HOSTS = new Set(["cdnjs.cloudflare.com", "unpkg.com", "cdn.jsdelivr.net"]);
 
 const TRAFFIC_CAMERAS = [
-  { id: "itic-near", name: "แยกรังสิต", org: "กรมทางหลวง", lat: 13.99, lng: 100.62, image: "https://cam.example.go.th/near.jpg", hls: null },
+  { id: "itic-near", name: "แยกรังสิต", org: "กรมทางหลวง", lat: 13.97, lng: 100.6, image: "https://cam.example.go.th/near.jpg", hls: null },
   { id: "itic-video", name: "ทล.1 ขาเข้า", org: "กรมทางหลวง", lat: 14.02, lng: 100.63, image: null, hls: "https://camera1.iticfoundation.org/hls/test.stream/playlist.m3u8" },
   { id: "itic-far", name: "เชียงใหม่ แยกทดสอบ", org: "เทศบาล", lat: 18.79, lng: 98.98, image: "https://cam.example.go.th/far.jpg", hls: null }
 ];
@@ -59,7 +64,7 @@ function makeStations(count) {
 /**
  * @typedef {{ status: number, body: string, contentType?: string }} ApiReply
  * @typedef {{ api: (reply: ApiReply | (() => ApiReply)) => void, config: (reply: ApiReply) => void, roadFlood: (reply: ApiReply) => void, trafficCameras: (reply: ApiReply) => void, waterGates: (reply: ApiReply) => void, dams: (reply: ApiReply) => void,
- *   vectorStyle: (ok: boolean) => void, pageErrors: string[], requests: string[] }} Net
+ *   vectorStyle: (ok: boolean) => void, streams: (mode: "fail" | "hang") => void, pageErrors: string[], requests: string[] }} Net
  */
 
 const FULL_CONFIG = {
@@ -96,6 +101,11 @@ async function netFixture({ page }, use) {
   /** @type {string[]} */
   const requests = [];
   let styleOk = false;
+  /** "fail": players get an empty playlist. "hang": players never get an answer (still connecting). */
+  let streamMode = /** @type {"fail" | "hang"} */ ("fail");
+  /** @type {Set<string>} playlists already answered once (the availability probe) */
+  const probed = new Set();
+  const closed = new Promise((resolve) => page.once("close", resolve));
   /** @type {string[]} */
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -114,7 +124,13 @@ async function netFixture({ page }, use) {
     if (pathname === "/api/water-gates") return route.fulfill({ status: waterGates.status, body: waterGates.body, contentType: "application/json" });
     if (pathname === "/api/dams") return route.fulfill({ status: dams.status, body: dams.body, contentType: "application/json" });
     if (pathname === "/api/traffic-cameras") return route.fulfill({ status: trafficCameras.status, body: trafficCameras.body, contentType: "application/json" });
-    if (host === "camera1.iticfoundation.org") return route.abort();
+    if (STREAM_HOSTS.has(host)) {
+      if (!pathname.endsWith(".m3u8")) return route.abort();
+      if (streamMode === "hang" && probed.has(url)) { await closed; return route.abort().catch(() => {}); }
+      probed.add(url);
+      return route.fulfill({ body: EMPTY_PLAYLIST, contentType: "application/vnd.apple.mpegurl", headers: CORS });
+    }
+    if (pathname === "/api/camera-snapshot") return route.fulfill({ body: FRAME, contentType: "image/svg+xml" });
     if (pathname === "/api/road-flood") return route.fulfill({ status: roadFlood.status, body: roadFlood.body, contentType: "application/json" });
     if (pathname === "/api/flood-wms") return route.fulfill({ body: PNG, contentType: "image/png" });
     if (host.startsWith("localhost")) return route.continue();
@@ -127,7 +143,11 @@ async function netFixture({ page }, use) {
     if (host === "tiles.openfreemap.org" && pathname.startsWith("/styles/")) {
       return styleOk ? route.fulfill({ body: MIN_STYLE, contentType: "application/json", headers: CORS }) : route.abort();
     }
-    if (route.request().resourceType() === "image") return route.fulfill({ body: PNG, contentType: "image/png", headers: CORS });
+    if (route.request().resourceType() === "image") {
+      // Map tiles stay tiny; anything else is a camera frame.
+      const tile = /\/\d+\/\d+\/\d+(@2x)?\.png$/.test(pathname) || host.endsWith("tomtom.com");
+      return tile ? route.fulfill({ body: PNG, contentType: "image/png", headers: CORS }) : route.fulfill({ body: FRAME, contentType: "image/svg+xml", headers: CORS });
+    }
     return route.abort();
   });
   await use({
@@ -139,6 +159,7 @@ async function netFixture({ page }, use) {
     dams: (reply) => { dams = reply; },
     requests,
     vectorStyle: (ok) => { styleOk = ok; },
+    streams: (mode) => { streamMode = mode; },
     pageErrors
   });
 }
@@ -155,13 +176,14 @@ async function openTab(page, tab) {
 /** Plain station cards (not risk cards) in whichever list shows nearby stations. @param {import("@playwright/test").Page} page */
 const stationCards = (page) => page.locator("#tab-content .station-card[data-station]:not(.risk-card)");
 
-/** On phones the layer switches live in a sheet behind the filter button. @param {import("@playwright/test").Page} page */
+/** The layer switches live in a drawer behind the filter button (bottom sheet on phones). @param {import("@playwright/test").Page} page */
 async function openLayers(page) {
-  if (isMobile()) await page.locator("#open-layers").click();
+  if (!(await page.locator("#layer-sheet").isVisible())) await page.locator("#open-layers").click();
+  await expect(page.locator("#layer-sheet")).toBeVisible();
 }
 
 // Every test gets the mocks (`auto`), even if it never touches `net`.
 /** @type {import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & { net: Net }, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>} */
 const test = base.extend({ net: [netFixture, { auto: true }] });
 
-module.exports = { test, expect, okReply, makeStations, json, openTab, stationCards, openLayers, isMobile };
+module.exports = { test, expect, okReply, makeStations, json, openTab, stationCards, openLayers, isMobile, TRAFFIC_CAMERAS };
