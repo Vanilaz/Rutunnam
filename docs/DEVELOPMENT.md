@@ -120,7 +120,17 @@ Helper สำหรับเขียน test ที่ใช้ได้ทั�
 
 ## ขึ้นเวอร์ชัน
 
-แก้ `version` ใน `package.json` (`npm version <x.y.z> --no-git-tag-version`) และ `APP_VERSION` ใน `public/js/config.js` ให้ตรงกัน แล้วเพิ่มหัวข้อใหม่ใน `CHANGELOG.md` ถ้าสองค่าไม่ตรงกัน `npm run build` จะล้ม
+ใช้คำสั่ง `npm version <x.y.z> --no-git-tag-version` แล้วเพิ่มหัวข้อใหม่ใน `CHANGELOG.md`
+
+คำสั่งนี้เรียก `scripts/sync-version.js` ให้อัตโนมัติ ซึ่งจะ:
+- แก้ `APP_VERSION` ใน `public/js/config.js`
+- เปลี่ยน URL ของ JS และ CSS ทุกไฟล์ใน `index.html` เป็น `/v/<version>/…` (Vercel rewrite กลับไปที่ไฟล์จริง, `dev-server.js` ทำแบบเดียวกัน)
+
+เมื่อ URL เปลี่ยนทุกเวอร์ชัน เบราว์เซอร์จะไม่มีทางใช้ JS เก่าที่ค้างใน cache คู่กับ HTML ใหม่ ถ้าเวอร์ชันไม่ตรงกันหรือมี URL ที่ไม่มีเลขเวอร์ชัน `npm run build` จะล้มพร้อมบอกคำสั่งแก้
+
+ไฟล์ใต้ `/v/<version>/` ตั้ง `Cache-Control: immutable` (cache ได้ 1 ปี) ไฟล์ของเวอร์ชันหนึ่งจึงห้ามเปลี่ยนอีก:
+- `asset-manifest.json` เก็บ hash ของ JS และ CSS ทุกไฟล์ของเวอร์ชันปัจจุบัน
+- ถ้าแก้ไฟล์ใน `public/js/` หรือ `public/*.css` โดยไม่ขึ้นเวอร์ชัน `npm run build` จะล้มพร้อมบอกให้รัน `npm version patch --no-git-tag-version`
 
 ## เกณฑ์ก่อน merge
 

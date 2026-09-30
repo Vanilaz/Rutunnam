@@ -380,6 +380,10 @@ test.describe("deploy safety", () => {
     await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
     await page.waitForTimeout(1500);
     expect(documentLoads(net.requests)).toBe(1);
+    // Every module and stylesheet comes from this version's URL, so no cached older copy can be used.
+    const own = net.requests.map((url) => new URL(url)).filter((url) => url.host.startsWith("localhost") && /\.(js|css)$/.test(url.pathname) && !url.pathname.startsWith("/vendor/"));
+    expect(own.length).toBeGreaterThan(20);
+    expect(own.filter((url) => !url.pathname.startsWith(`/v/${version}/`)).map((url) => url.pathname)).toEqual([]);
   });
 
   test("a section that fails to render shows a message and does not block the menu", async ({ page, net }) => {
