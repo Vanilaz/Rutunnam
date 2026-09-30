@@ -16,6 +16,7 @@ api/                         Vercel Functions (1 ไฟล์ = 1 endpoint) — 
   road-flood.js              ถนนน้ำท่วม
   traffic-cameras.js         กล้องจราจรทั่วประเทศ + fallback
   water-gates.js             ประตูระบายน้ำ (createFeedHandler)
+  camera-snapshot.js         proxy ภาพกล้องรังสิต (allowlist id)
   dams.js                    เขื่อนและอ่างเก็บน้ำ (createFeedHandler)
   flood-wms.js               proxy GISTDA WMS (ซ่อน key)
   config.js                  ชั้นข้อมูลที่ deployment นี้เปิดได้
@@ -47,8 +48,12 @@ public/
     load.js                  โหลด script/stylesheet จาก CDN พร้อม SRI เมื่อต้องใช้
     map/                     map.js, basemap.js, stations-layer.js, cameras-layer.js,
                              traffic-cameras-layer.js, flood-layer.js, traffic-layer.js,
-                             road-flood-layer.js, water-gates-layer.js, dams-layer.js, location-layer.js
-    ui/                      dom.js, clock.js, status.js, list-panel.js, camera-viewer.js
+                             road-flood-layer.js, water-gates-layer.js, dams-layer.js, location-layer.js,
+                             viewport-markers.js (สร้างหมุดเฉพาะในจอ)
+    camera-availability.js   ตรวจว่ากล้องส่งภาพ/สตรีมได้จริงก่อนขึ้นแผนที่
+    water-trends.js          แนวโน้มขึ้น/ลงจากค่าตรวจวัดสองรอบ
+    ui/                      dom.js, clock.js, status.js, list-panel.js, camera-viewer.js,
+                             hls-player.js (ต่อ HLS: native หรือ hls.js), live-grid.js (วิดีโอสดในรายการ)
   vendor/leaflet.min.css     CSS ของ Leaflet 1.9.4 (BSD-2-Clause)
 scripts/check-build.js       ตรวจไฟล์จำเป็น, import graph, modulepreload
 tests/*.test.js              unit test (node --test)
@@ -72,14 +77,14 @@ types/globals.d.ts           type ของ global จาก CDN (plugin MapLibr
 
 Browser test mock เครือข่ายทั้งหมดใน `tests/e2e/fixtures.js`:
 - `/api/*` ตอบด้วยข้อมูลทดสอบ
-- tile และภาพกล้องตอบเป็น PNG ขนาด 1×1
-- ใน test ที่ต้องการ ต้นทางวิดีโอจะถูกตัดการเชื่อมต่อ
+- tile ตอบเป็น PNG 1×1 ส่วนภาพกล้องตอบเป็นภาพ 160×120 (แอปไม่รับภาพที่กว้างน้อยกว่า 64 px)
+- playlist วิดีโอตอบเป็น `#EXTM3U` เปล่า จึงผ่านการตรวจแต่เล่นไม่ได้ ถ้าเรียก `net.streams("hang")` player จะค้างที่ "กำลังต่อ" ใช้นับจำนวนสตรีม
 - CDN (cdnjs, unpkg, jsdelivr) โหลดจริง จึงตรวจ SRI ของ MapLibre และ hls.js ไปด้วยทุกครั้งบน CI
 
 Helper สำหรับเขียน test ที่ใช้ได้ทั้งสอง layout:
 - `openTab(page, tab)`: desktop กดแท็บ ส่วนมือถือกดเมนูล่าง
 - `stationCards(page)`
-- `openLayers(page)`: มือถือเปิด sheet "ชั้นข้อมูล"
+- `openLayers(page)`: เปิด drawer "ชั้นข้อมูล" (ทั้ง desktop และมือถือ)
 
 ถ้าเครื่องออก internet ไม่ได้ ให้วางไฟล์จาก npm tarball ไว้ในโฟลเดอร์หนึ่ง แล้วตั้ง `E2E_CDN_MIRROR=/path/to/dir`:
 - `leaflet.min.js`

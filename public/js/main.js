@@ -1,5 +1,5 @@
 // Composition root: owns app state and wires modules to the DOM.
-import { APP_VERSION, THUMBNAIL_TIMEOUT_MS, CAMERA_SOURCES, DAM_LIST_LIMIT, DAM_REFRESH_MS, DEFAULT_CAMERA_REFRESH_MS, GATE_LIST_LIMIT, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, THUMBNAIL_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
+import { APP_VERSION, THUMBNAIL_TIMEOUT_MS, CAMERA_SOURCES, DAM_LIST_LIMIT, DAM_REFRESH_MS, DEFAULT_CAMERA_REFRESH_MS, GATE_LIST_LIMIT, DEFAULT_ZOOM, FOCUS_ZOOM, GEOLOCATION_OPTIONS, LOCATE_ZOOM, MOBILE_BREAKPOINT_PX, NEARBY_RADIUS_KM, NEAREST_STATION_LIMIT, RANGSIT, RISK_LIST_LIMIT, STATION_REFRESH_MS, TRAFFIC_CAMERA_PAGE_SIZE, LIVE_GRID_MAX_STREAMS, LIVE_START_TIMEOUT_MS, LIVE_RETRY_AFTER_MS, TRAFFIC_CAMERA_REFRESH_MS, TRAFFIC_CAMERA_SOURCE } from "./config.js";
 import { fetchDams, fetchLayerConfig, fetchRoadFloods, fetchStations, fetchTrafficCameras, fetchWaterGates, NO_OPTIONAL_LAYERS } from "./api.js";
 import { isLayerWanted, loadCachedStations, loadHome, saveCachedStations, saveHome, saveLayerPref } from "./storage.js";
 import { age, distanceKm, fmtClock, formatCount, nearestStations, searchStations, withinKm } from "./utils.js";
@@ -22,6 +22,7 @@ import { startClock } from "./ui/clock.js";
 import { byId, required } from "./ui/dom.js";
 import { createStatusView } from "./ui/status.js";
 import { createListPanel } from "./ui/list-panel.js";
+import { createLiveGrid } from "./ui/live-grid.js";
 import { withWaterTrends } from "./water-trends.js";
 import { probeCameras } from "./camera-availability.js";
 
@@ -127,6 +128,7 @@ function setView(view) {
     document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item instanceof HTMLElement && item.dataset.nav === "map"));
   }
   else ui.tabContent.scrollTop = 0;
+  syncLiveGrid();
 }
 
 /** Bring the map into view before focusing something on it. @param {ScrollLogicalPosition} [block] */
@@ -141,12 +143,12 @@ const map = createMap("map", center());
 if (!map) byId("map-fallback").hidden = false;
 const basemap = map && createBasemap(map, { onFallback: () => { ui.mapStyle.value = "classic"; } });
 const stationsLayer = map && createStationsLayer(map);
-const camerasLayer = map && createCamerasLayer(map, CAMERA_SOURCES, { onOpen: (camera) => viewer.open(waterViewerCamera(camera)) });
+const camerasLayer = map && createCamerasLayer(map, CAMERA_SOURCES, { onOpen: (camera) => openViewer(waterViewerCamera(camera)) });
 const locationLayer = map && createLocationLayer(map);
 const roadFloodLayer = map && createRoadFloodLayer(map);
 const waterGatesLayer = map && createWaterGatesLayer(map);
 const damsLayer = map && createDamsLayer(map);
-const trafficCamerasLayer = map && createTrafficCamerasLayer(map, { onOpen: (camera) => viewer.open(trafficViewerCamera(camera)) });
+const trafficCamerasLayer = map && createTrafficCamerasLayer(map, { onOpen: (camera) => openViewer(trafficViewerCamera(camera)) });
 /** @type {ReturnType<typeof createFloodLayer> | null} */
 let floodLayer = null;
 /** @type {ReturnType<typeof createTrafficLayer> | null} */
@@ -209,6 +211,7 @@ function cameraView() {
     provinces,
     selectedProvince: state.cameraProvince,
     filteredTotal: traffic?.length ?? 0,
+    liveLimit,
     trafficError: state.trafficCameraError,
     hasMore: Boolean(traffic && traffic.length > state.trafficCameraLimit)
   };
@@ -237,7 +240,8 @@ function viewerCameraFor(key) {
   return camera ? trafficViewerCamera(camera) : null;
 }
 
-const viewer = createCameraViewer(byId("camera-viewer", HTMLDialogElement), {
+const cameraDialog = byId("camera-viewer", HTMLDialogElement);
+const viewer = createCameraViewer(cameraDialog, {
   onShowOnMap(camera) {
     if (!map) return;
     const [kind, ...rest] = camera.id.split(":");
@@ -250,21 +254,27 @@ const viewer = createCameraViewer(byId("camera-viewer", HTMLDialogElement), {
   }
 });
 
-/** Load (or reload) camera thumbnails in the camera tab; the cache-buster forces a fresh frame. */
-function refreshThumbnails() {
-  ui.tabContent.querySelectorAll("img[data-thumb]").forEach((img) => {
-    if (!(img instanceof HTMLImageElement)) return;
-    const card = img.closest(".cam-card");
-    const badge = card?.querySelector(".cam-badge");
-    const base = img.dataset.thumb ?? "";
-    /** @param {string} text @param {string} className */
-    const setBadge = (text, className) => { if (badge) { badge.textContent = text; badge.className = `cam-badge ${className}`; } };
-    // Some camera hosts never answer; do not leave "กำลังโหลด" up forever.
-    const timeout = setTimeout(() => { if (!img.complete || !img.naturalWidth) setBadge("ไม่ตอบสนอง", "is-offline"); }, THUMBNAIL_TIMEOUT_MS);
-    img.onload = () => { clearTimeout(timeout); setBadge(img.naturalWidth >= 64 ? "ภาพพร้อม" : "ภาพผิดปกติ", img.naturalWidth >= 64 ? "is-live" : "is-offline"); };
-    img.onerror = () => { clearTimeout(timeout); setBadge("ไม่มีสัญญาณ", "is-offline"); };
-    img.src = `${base}${base.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  });
+/** @param {ViewerCamera} camera */
+function openViewer(camera) {
+  viewer.open(camera);
+  syncLiveGrid(); // The full-screen player takes the bandwidth; grid streams pause.
+}
+cameraDialog.addEventListener("close", () => syncLiveGrid());
+
+// Data Saver (Chrome/Android) turns off autoplaying video in the list; tapping still plays live.
+const saveData = /** @type {{ connection?: { saveData?: boolean } }} */ (navigator).connection?.saveData === true;
+const liveLimit = saveData ? 0 : LIVE_GRID_MAX_STREAMS;
+const liveGrid = createLiveGrid(ui.tabContent, {
+  maxStreams: liveLimit,
+  startTimeoutMs: LIVE_START_TIMEOUT_MS,
+  frameTimeoutMs: THUMBNAIL_TIMEOUT_MS,
+  retryAfterMs: LIVE_RETRY_AFTER_MS
+});
+
+/** Camera streams and frame refreshes run only while the camera list is on screen. */
+function syncLiveGrid() {
+  const listOnScreen = !mobileQuery.matches || document.body.dataset.view === "panel";
+  liveGrid.setActive(state.tab === "camera" && listOnScreen && !document.hidden && !cameraDialog.open);
 }
 
 function gatesView() {
@@ -323,7 +333,7 @@ const listPanel = createListPanel(byId("tab-content"), {
   },
   onViewer(key) {
     const camera = viewerCameraFor(key);
-    if (camera) viewer.open(camera);
+    if (camera) openViewer(camera);
   },
   onGate(id) {
     const gate = state.gates.items?.find((item) => item.id === id);
@@ -364,12 +374,13 @@ ui.tabContent.addEventListener("change", (event) => {
 
 function renderList() {
   try {
-    if (listPanel.render(tabHtml()) && state.tab === "camera") refreshThumbnails();
+    if (listPanel.render(tabHtml())) liveGrid.sync();
   } catch (error) {
     // One bad record from an upstream feed must not freeze the whole app.
     console.error("render failed", state.tab, error);
-    listPanel.render(`<div class="empty"><strong>แสดงข้อมูลส่วนนี้ไม่ได้</strong><p>ข้อมูลจากต้นทางมีรูปแบบที่ไม่คาดคิด ลองรีเฟรชหรือเปิดเมนูอื่น</p></div>`);
+    if (listPanel.render(`<div class="empty"><strong>แสดงข้อมูลส่วนนี้ไม่ได้</strong><p>ข้อมูลจากต้นทางมีรูปแบบที่ไม่คาดคิด ลองรีเฟรชหรือเปิดเมนูอื่น</p></div>`)) liveGrid.sync();
   }
+  syncLiveGrid();
   try { renderSummary(); } catch (error) { console.error("summary failed", error); }
 }
 
@@ -752,11 +763,11 @@ loadLayerConfig();
 basemap?.setStyle(ui.mapStyle.value);
 setInterval(() => { if (!document.hidden) { loadStations(); loadRoadFloods(); loadWaterGates(); } }, STATION_REFRESH_MS);
 setInterval(() => { if (!document.hidden) loadDams(); }, DAM_REFRESH_MS);
-setInterval(() => { if (!document.hidden && state.tab === "camera") refreshThumbnails(); }, THUMBNAIL_REFRESH_MS);
 // Leaving the phone layout (rotate/resize) must not leave the map hidden.
 mobileQuery.addEventListener("change", () => { if (!mobileQuery.matches) setView("map"); });
 // Background tabs skip the interval, so catch up as soon as the page is visible again.
 document.addEventListener("visibilitychange", () => {
+  syncLiveGrid();
   if (document.hidden || age(state.fetchedAt) < STATION_REFRESH_MS) return;
   loadStations();
   loadRoadFloods();

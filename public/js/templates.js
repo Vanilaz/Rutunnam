@@ -1,5 +1,5 @@
 // HTML string builders. Every dynamic value goes through escapeHtml.
-import { DEFAULT_CAMERA_REFRESH_MS, NEARBY_RADIUS_KM, THAIWATER_URL } from "./config.js";
+import { DEFAULT_CAMERA_REFRESH_MS, LIVE_GRID_MAX_STREAMS, NEARBY_RADIUS_KM, THAIWATER_URL, TRAFFIC_CAMERA_REFRESH_MS } from "./config.js";
 import { formatMargin, RISK_STYLES, stationRisk } from "./risk.js";
 import { DAM_STYLES, gateDifference } from "./reservoir.js";
 import { escapeHtml as esc, fmtTime, isFresh, levelText } from "./utils.js";
@@ -130,38 +130,75 @@ export function riskTabHtml({ items, total, nearby, hasStations, riskOnly, neare
   return `${summary}<div class="content-heading"><strong>จุดที่น้ำล้นหรือใกล้ตลิ่งทั่วประเทศ</strong><span>${total} สถานี</span></div>${toggle}${list}${more}${nearestHtml}<p class="subtle">เกณฑ์: ใช้ % ความจุลำน้ำที่ ThaiWater คำนวณ (เกิน 100% = ล้นตลิ่ง, เกิน 70% = น้ำมาก) หรือเทียบระดับน้ำกับระดับตลิ่งต่ำสุดที่เผยแพร่ ตำแหน่งบนแผนที่คือจุดตั้งสถานี ไม่ใช่แนวตลิ่งทั้งเส้น</p>`;
 }
 
+/** Cameras shown as large live cards before the compact grid (the rest of the list). */
+export const HERO_CAMERA_COUNT = 6;
+/** Distance groups for the compact grid, measured from the viewer's home/location. */
+const DISTANCE_BANDS = Object.freeze([
+  { maxKm: 25, label: "ใกล้คุณ · ไม่เกิน 25 กม." },
+  { maxKm: 60, label: "25–60 กม." },
+  { maxKm: 200, label: "60–200 กม." },
+  { maxKm: Infinity, label: "ไกลกว่า 200 กม." }
+]);
+
+/** @param {number} km */
+const kmText = (km) => `${km < 10 ? km.toFixed(1) : Math.round(km)} กม.`;
+
 /**
- * A thumbnail card; the image URL goes in data-thumb and is loaded (with cache-busting) by the page.
- * @param {{ key: string, name: string, caption: string, image: string | null, video: boolean }} card
+ * A camera card. The live grid (ui/live-grid.js) plays data-hls while the card is on screen,
+ * otherwise it refreshes the still frame in data-thumb every data-refresh ms and owns the badge.
+ * @param {{ key: string, name: string, sub: string, distance: number, image: string | null, hls: string | null, refreshMs: number, size: "hero" | "tile" }} card
  */
-function cameraCardHtml({ key, name, caption, image, video }) {
+function cameraCardHtml({ key, name, sub, distance, image, hls, refreshMs, size }) {
   const thumb = image
     ? `<span class="cam-thumb"><img data-thumb="${esc(image)}" alt=""></span>`
-    : `<span class="cam-thumb cam-video" aria-hidden="true">▶</span>`;
-  const badge = image ? `<span class="cam-badge">กำลังโหลด</span>` : `<span class="cam-badge is-live">วิดีโอสด</span>`;
-  return `<button type="button" class="cam-card" data-viewer="${esc(key)}" aria-label="ดูกล้อง ${esc(name)}">${thumb}${badge}${video && image ? `<span class="cam-play" aria-hidden="true">▶</span>` : ""}<span class="cam-caption"><strong>${esc(name)}</strong><small>${esc(caption)}</small></span></button>`;
+    : `<span class="cam-thumb cam-video"><span class="cam-placeholder" aria-hidden="true">▶</span></span>`;
+  const live = hls ? ` data-hls="${esc(hls)}"` : "";
+  return `<button type="button" class="cam-card cam-${size}" data-viewer="${esc(key)}"${live} data-refresh="${Math.round(refreshMs)}" data-size="${size}" aria-label="ดูกล้อง ${esc(name)} ห่าง ${kmText(distance)}">`
+    + `${thumb}<span class="cam-badge" hidden></span>`
+    + `<span class="cam-caption"><span class="cam-title"><strong>${esc(name)}</strong>${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="cam-distance">${kmText(distance)}</span></span></button>`;
+}
+
+/** @param {{ camera: import("./types.js").TrafficCamera, distance: number }} item @param {"hero" | "tile"} size */
+const trafficCard = ({ camera, distance }, size) => cameraCardHtml({
+  key: `traffic:${camera.id}`, name: camera.name, sub: camera.org || "กล้องจราจร", distance,
+  image: camera.image, hls: camera.hls, refreshMs: TRAFFIC_CAMERA_REFRESH_MS, size
+});
+
+/** @param {{ camera: import("./types.js").TrafficCamera, distance: number }[]} rest sorted nearest first */
+function trafficBandsHtml(rest) {
+  let from = 0;
+  return DISTANCE_BANDS.map(({ maxKm, label }) => {
+    const band = rest.filter(({ distance }) => distance >= from && distance < maxKm);
+    from = maxKm;
+    if (!band.length) return "";
+    return `<div class="band-heading">${esc(label)} · ${band.length} กล้อง</div><div class="cam-grid cam-tiles">${band.map((item) => trafficCard(item, "tile")).join("")}</div>`;
+  }).join("");
 }
 
 /**
  * @param {{ water: { camera: Readonly<Camera>, distance: number }[], directories: ReadonlyArray<Readonly<Camera>>,
  *   traffic: { camera: import("./types.js").TrafficCamera, distance: number }[] | null, trafficTotal: number,
- *   trafficError: string | null, hasMore: boolean, provinces?: string[], selectedProvince?: string, provinceTotal?: number, filteredTotal?: number, trafficChecked?: number, trafficCandidates?: number }} view
+ *   trafficError: string | null, hasMore: boolean, provinces?: string[], selectedProvince?: string, provinceTotal?: number, filteredTotal?: number, trafficChecked?: number, trafficCandidates?: number, liveLimit?: number }} view
  */
-export function cameraTabHtml({ water, directories, traffic, trafficTotal, trafficError, hasMore, provinces = [], selectedProvince = "", provinceTotal = 0, filteredTotal = trafficTotal, trafficChecked = 0, trafficCandidates = 0 }) {
-  const waterCards = water.map(({ camera, distance }) => cameraCardHtml({ key: `water:${camera.id}`, name: camera.name, caption: `${camera.source || "กทม."} · ${distance.toFixed(1)} km`, image: camera.image ?? null, video: Boolean(camera.hls) })).join("");
+export function cameraTabHtml({ water, directories, traffic, trafficTotal, trafficError, hasMore, provinces = [], selectedProvince = "", provinceTotal = 0, filteredTotal = trafficTotal, trafficChecked = 0, trafficCandidates = 0, liveLimit = LIVE_GRID_MAX_STREAMS }) {
+  const waterCards = water.map(({ camera, distance }) => cameraCardHtml({ key: `water:${camera.id}`, name: camera.name, sub: camera.source || "กทม.", distance, image: camera.image ?? null, hls: camera.hls ?? null, refreshMs: camera.refreshMs || DEFAULT_CAMERA_REFRESH_MS, size: "tile" })).join("");
   let trafficHtml;
   if (trafficError) trafficHtml = `<div class="cache-warning">${esc(trafficError)}</div>`;
   else if (traffic === null) trafficHtml = `<p class="subtle">กำลังโหลดรายชื่อกล้องจราจร...</p>`;
   else if (!traffic.length) trafficHtml = `<p class="subtle">${trafficChecked < trafficCandidates ? "กำลังตรวจภาพกล้องทีละจุด..." : "ยังไม่มีกล้องจราจรที่ยืนยันภาพได้จากฟีดต้นทาง"}</p>`;
-  else trafficHtml = `<div class="cam-grid traffic-grid">${traffic.map(({ camera, distance }) => cameraCardHtml({ key: `traffic:${camera.id}`, name: camera.name, caption: `${camera.org || "กล้องจราจร"} · ${distance.toFixed(1)} km`, image: camera.image, video: Boolean(camera.hls) })).join("")}</div>`
+  else trafficHtml = `<div class="content-heading live-heading"><strong><i class="live-dot" aria-hidden="true"></i>สดใกล้คุณ</strong><span>${Math.min(HERO_CAMERA_COUNT, traffic.length)} จุดใกล้สุด</span></div>`
+    + `<div class="cam-grid cam-heroes">${traffic.slice(0, HERO_CAMERA_COUNT).map((item) => trafficCard(item, "hero")).join("")}</div>`
+    + (traffic.length > HERO_CAMERA_COUNT ? `<div class="content-heading"><strong>กล้องอื่น ๆ</strong><span>เรียงจากใกล้คุณ · แตะเพื่อดูสด</span></div>${trafficBandsHtml(traffic.slice(HERO_CAMERA_COUNT))}` : "")
     + (hasMore ? `<button type="button" class="link-button more-button" data-action="more-traffic-cameras">แสดงกล้องเพิ่ม</button>` : "");
   const links = directories.map((camera) => infoCard(esc(camera.name), `${esc(camera.area)} · ${esc(camera.note)}`, external(camera.url, "เปิดศูนย์กล้อง ↗"))).join("");
   const options = provinces.map((province) => `<option value="${esc(province)}"${selectedProvince === province ? " selected" : ""}>${esc(province)}</option>`).join("");
-  return `<div class="camera-intro"><span class="section-kicker">CCTV EXPLORER</span><h3>มองเห็นสถานการณ์จริง</h3><p>เลือกกล้องดูน้ำหรือกล้องถนน เปิดภาพและดูตำแหน่งได้ทันที</p><div class="camera-stat"><strong>${water.length}</strong><span>กล้องดูน้ำ</span><strong>${trafficTotal}</strong><span>กล้องถนนที่ยืนยันภาพแล้ว</span></div></div>`
-    + `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${water.length} กล้อง</span></div><div class="cam-grid">${waterCards}</div>`
+  return `<div class="camera-intro"><span class="section-kicker">CCTV EXPLORER</span><h3>มองเห็นสถานการณ์จริง</h3><p>${liveLimit > 0
+    ? `กล้องที่มีวิดีโอเล่นสดในรายการได้พร้อมกัน ${liveLimit} จอ กล้องที่มีแต่ภาพนิ่งอัปเดตทุก ${TRAFFIC_CAMERA_REFRESH_MS / 1000} วินาที แตะกล้องเพื่อขยาย`
+    : "โหมดประหยัดข้อมูล: แสดงภาพนิ่ง แตะกล้องเพื่อดูวิดีโอสด"}</p><div class="camera-stat"><strong>${water.length}</strong><span>กล้องดูน้ำ</span><strong>${trafficTotal}</strong><span>กล้องถนนที่ยืนยันภาพแล้ว</span></div></div>`
+    + `<div class="content-heading"><strong>กล้องดูระดับน้ำ</strong><span>${water.length} กล้อง</span></div><div class="cam-grid cam-water">${waterCards}</div>`
     + `<div class="content-heading"><strong>กล้องบนถนน</strong><span>${selectedProvince ? `${filteredTotal} จุด` : `${trafficTotal} จุดทั่วประเทศ`}</span></div>`
     + `<label class="camera-filter-label" for="camera-province">เลือกจังหวัด</label><select id="camera-province" class="camera-province"><option value="">ทุกจังหวัดที่มีข้อมูล</option>${options}</select><p class="camera-coverage">${selectedProvince ? `กำลังดูกล้องใน${esc(selectedProvince)}` : `ฟีดมีรายชื่อจาก ${provinceTotal || "หลาย"} จังหวัด`} · ตรวจภาพแล้ว ${trafficChecked}/${trafficCandidates} จุด · เฉพาะกล้องที่เปิดภาพได้จึงขึ้นแผนที่</p>${trafficHtml}`
-    + `<p class="subtle">ตรวจว่าไฟล์ภาพจาก iTIC / Longdo เปิดได้ในเบราว์เซอร์ ณ เวลาที่โหลดหน้า ภาพอาจขาดสัญญาณภายหลัง</p>`
+    + `<p class="subtle">ตรวจว่าภาพหรือสตรีมจาก iTIC / Longdo เปิดได้ในเบราว์เซอร์ ณ เวลาที่โหลดหน้า กล้องที่เล่นสดจะหยุดเมื่อเลื่อนพ้นจอเพื่อประหยัดเน็ต ภาพอาจขาดสัญญาณภายหลัง</p>`
     + `<div class="content-heading"><strong>ศูนย์กล้องท้องถิ่นและหน่วยงานน้ำ</strong></div>${links}`;
 }
 

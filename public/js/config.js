@@ -2,7 +2,7 @@
 
 // Must equal package.json "version" (checked by `npm run build`). The page reloads itself once
 // when /api/config reports a different version, so a phone never runs old JS against new HTML.
-export const APP_VERSION = "0.6.3";
+export const APP_VERSION = "0.7.0";
 /** @typedef {import("./types.js").Camera} Camera */
 
 /** @type {import("./types.js").LatLngTuple} */
@@ -44,10 +44,17 @@ export const DAM_REFRESH_MS = 30 * MINUTE_MS;
 export const DAM_STALE_MS = 3 * 24 * HOUR_MS;
 // Royal Irrigation Department reservoir classes, as % of normal storage.
 export const DAM_CLASSES = Object.freeze({ overAbove: 100, highAbove: 80, lowAtOrBelow: 50, criticalAtOrBelow: 30 });
-export const TRAFFIC_CAMERA_PAGE_SIZE = 12;
-export const THUMBNAIL_REFRESH_MS = 60 * 1000;
+// Cards per page in the camera list (6 live cards + compact tiles). Frames load only when on screen.
+export const TRAFFIC_CAMERA_PAGE_SIZE = 36;
 export const THUMBNAIL_TIMEOUT_MS = 8 * 1000;
-export const TRAFFIC_CAMERA_REFRESH_MS = 15 * 1000;
+// Still-only cameras: how often an on-screen frame is re-requested.
+export const TRAFFIC_CAMERA_REFRESH_MS = 5 * 1000;
+// Live grid: video cards playing at once. Each stream costs roughly 0.3–1 Mbit/s on a phone.
+export const LIVE_GRID_MAX_STREAMS = 4;
+// A stream that shows no picture within this time gives its slot to the next camera.
+export const LIVE_START_TIMEOUT_MS = 15 * 1000;
+// A failed stream is not retried for this long, so a dead camera does not keep reconnecting.
+export const LIVE_RETRY_AFTER_MS = 2 * MINUTE_MS;
 export const TRAFFIC_CAMERA_SOURCE = Object.freeze({ url: "https://traffic.longdo.com/", label: "iTIC · Longdo Traffic" });
 
 // hls.js plays live HLS video in browsers without native support (Chrome/Firefox desktop).

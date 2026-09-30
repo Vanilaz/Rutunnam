@@ -81,7 +81,7 @@ test.describe("summary and layout", () => {
     await expect(page.locator("#kpi-overflow")).toHaveText("1");
     await expect(page.locator("#kpi-high")).toHaveText("1");
     await expect(page.locator("#kpi-roads")).toHaveText("2");
-    await expect(page.locator("#kpi-cameras")).toHaveText("10");
+    await expect(page.locator("#kpi-cameras")).toHaveText("12");
     await expect(page.locator("#updated-at")).not.toHaveText("--:--");
     await page.locator("#alert-banner").click();
     await expect(page.locator(".leaflet-popup-content")).toContainText("สถานีทดสอบ 11");
@@ -112,7 +112,9 @@ test.describe("cameras", () => {
     await page.goto("/");
     await openTab(page, "camera");
     const waterCard = page.locator('[data-viewer="water:dds1"]');
-    await expect(waterCard.locator(".cam-badge")).toHaveText("สด");
+    // Frames load only once a card is on screen.
+    await waterCard.scrollIntoViewIfNeeded();
+    await expect(waterCard.locator(".cam-badge")).toHaveText(/^\d{2}:\d{2}$/); // time of the frame on screen
     await waterCard.click();
     const viewer = page.locator("#camera-viewer");
     await expect(viewer).toBeVisible();
@@ -124,7 +126,7 @@ test.describe("cameras", () => {
 
   test("nationwide traffic cameras are listed nearest first and shown on the map", async ({ page, net }) => {
     await page.goto("/");
-    await expect(page.locator("#traffic-camera-note")).toHaveText("iTIC · 3 กล้อง");
+    await expect(page.locator("#traffic-camera-note")).toHaveText("iTIC · ภาพพร้อม 3 / ตรวจแล้ว 3 จุด");
     await expect(page.locator(".traffic-cam-pin")).toHaveCount(3);
     await page.locator(".traffic-cam-pin").first().click();
     await expect(page.locator(".camera-popup-image")).toHaveAttribute("src", /near\.jpg\?t=\d+/);
@@ -146,6 +148,48 @@ test.describe("cameras", () => {
     await expect.poll(() => page.evaluate(() => typeof (/** @type {any} */ (window)).Hls), { timeout: 15000 }).toBe("function");
     // The mocked stream host is unreachable, so the viewer must say so instead of hanging.
     await expect(page.locator("#camera-viewer .viewer-message")).toContainText("วิดีโอจากกล้องนี้ไม่พร้อมใช้งาน");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("video cameras play live in the list, at most 4 at once, and stop when the list closes", async ({ page, net }) => {
+    net.streams("hang"); // Players stay "connecting", so every started stream is still counted.
+    const cameras = Array.from({ length: 12 }, (_, i) => ({
+      id: `itic-live${i}`, name: `กล้องสด ${i}`, org: "กรมทางหลวง", lat: 13.99 + i / 1000, lng: 100.62, image: null,
+      hls: `https://camera1.iticfoundation.org/hls/live${i}.stream/playlist.m3u8`
+    }));
+    net.trafficCameras(json({ cameras, fetchedAt: new Date().toISOString() }));
+    // A taller desktop window, so more video cards than the limit fit in the side panel.
+    if (!isMobile()) await page.setViewportSize({ width: 1280, height: 1100 });
+    await page.goto("/");
+    await openTab(page, "camera");
+    await expect(page.locator('[data-viewer^="traffic:"]')).toHaveCount(12);
+    await expect(page.locator(".cam-hero")).toHaveCount(6);
+    // The compact tiles after the six large cards put more video cards on screen than the limit.
+    await page.locator('[data-viewer="traffic:itic-live7"]').scrollIntoViewIfNeeded();
+    const live = page.locator("#tab-content video.cam-live");
+    await expect(live).toHaveCount(4);
+    const streaming = page.locator("#tab-content .cam-card.is-streaming");
+    await expect(streaming.first().locator(".cam-badge")).toHaveText("กำลังต่อ…");
+    // Opening one camera full screen hands the bandwidth to the viewer.
+    await streaming.first().click();
+    await expect(page.locator("#camera-viewer")).toBeVisible();
+    await expect(live).toHaveCount(0);
+    await page.locator("#camera-viewer [data-viewer-close]").click();
+    await expect(live).toHaveCount(4);
+    // Leaving the list stops every stream.
+    if (isMobile()) await page.locator('[data-nav="map"]').click();
+    else await page.locator('.tab[data-tab="risk"]').click();
+    await expect(page.locator("video.cam-live")).toHaveCount(0);
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("a camera whose stream breaks says so instead of spinning", async ({ page, net }) => {
+    await page.goto("/");
+    await openTab(page, "camera");
+    const card = page.locator('[data-viewer="traffic:itic-video"]');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.locator(".cam-badge")).toHaveText("วิดีโอขัดข้อง", { timeout: 20000 });
+    await expect(card.locator("video")).toHaveCount(0);
     expect(net.pageErrors).toEqual([]);
   });
 
@@ -290,6 +334,7 @@ test.describe("water gates and dams", () => {
     await expect(dams.nth(1)).toContainText("น้ำน้อย");
     await gate.click();
     await expect(page.locator(".leaflet-popup-content")).toContainText("น้ำด้านรับ 3.72 ม.");
+    await openTab(page, "gates"); // Phones switched to the map for the gate.
     await dams.first().click();
     await expect(page.locator(".dam-pin.is-large")).toHaveText(/104%/);
     expect(net.pageErrors).toEqual([]);

@@ -1,16 +1,8 @@
 // Full-screen camera viewer (<dialog>): refreshing still image, or live HLS video.
-import { HLS_JS_ASSET } from "../config.js";
-import { loadScript } from "../load.js";
 import { escapeHtml as esc } from "../utils.js";
+import { attachHls } from "./hls-player.js";
 
 /** @typedef {import("../types.js").ViewerCamera} ViewerCamera */
-/** @typedef {{ loadSource(url: string): void, attachMedia(media: HTMLMediaElement): void, on(event: string, fn: (event: string, data: { fatal?: boolean }) => void): void, destroy(): void }} HlsInstance */
-/** @typedef {{ new (config?: object): HlsInstance, isSupported(): boolean, Events: { ERROR: string } }} HlsConstructor */
-
-const HLS_MIME = "application/vnd.apple.mpegurl";
-
-/** @returns {HlsConstructor | undefined} */
-const hlsGlobal = () => /** @type {any} */ (window).Hls;
 
 /**
  * @param {HTMLDialogElement} dialog
@@ -24,8 +16,8 @@ export function createCameraViewer(dialog, { onShowOnMap }) {
 
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
-  /** @type {HlsInstance | null} */
-  let hls = null;
+  /** @type {import("./hls-player.js").LiveHandle | null} */
+  let live = null;
   /** @type {ViewerCamera | null} */
   let current = null;
   let session = 0; // Ignores async work that finishes after the viewer was closed or switched.
@@ -33,9 +25,7 @@ export function createCameraViewer(dialog, { onShowOnMap }) {
   function stop() {
     session += 1;
     if (timer) { clearInterval(timer); timer = null; }
-    if (hls) { hls.destroy(); hls = null; }
-    const video = body?.querySelector("video");
-    if (video) { video.pause(); video.removeAttribute("src"); video.load(); }
+    if (live) { live.destroy(); live = null; }
     if (body) body.innerHTML = "";
   }
 
@@ -66,17 +56,15 @@ export function createCameraViewer(dialog, { onShowOnMap }) {
     const video = document.createElement("video");
     Object.assign(video, { muted: true, autoplay: true, playsInline: true, controls: true, className: "viewer-media" });
     body.replaceChildren(video);
-    const fallback = () => { if (session !== mine) return; if (hls) { hls.destroy(); hls = null; } if (camera.image) showImage(camera); else showMessage("วิดีโอจากกล้องนี้ไม่พร้อมใช้งานในขณะนี้"); };
-    video.onerror = fallback;
-    if (video.canPlayType(HLS_MIME)) { video.src = camera.hls; return; }
-    try { await loadScript(HLS_JS_ASSET); } catch (_) { fallback(); return; }
-    const Hls = hlsGlobal();
-    if (session !== mine) return;
-    if (!Hls || !Hls.isSupported()) { fallback(); return; }
-    hls = new Hls({ maxBufferLength: 10 });
-    hls.on(Hls.Events.ERROR, (_event, data) => { if (data.fatal) fallback(); });
-    hls.loadSource(camera.hls);
-    hls.attachMedia(video);
+    const fallback = () => {
+      if (session !== mine) return;
+      if (live) { live.destroy(); live = null; }
+      if (camera.image) showImage(camera); else showMessage("วิดีโอจากกล้องนี้ไม่พร้อมใช้งานในขณะนี้");
+    };
+    const handle = await attachHls(video, camera.hls, { onFatal: fallback });
+    if (session !== mine) { handle?.destroy(); return; }
+    if (!handle) { fallback(); return; }
+    live = handle;
   }
 
   dialog.addEventListener("close", stop);

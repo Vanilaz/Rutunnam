@@ -87,8 +87,17 @@
 ```
 
 - `image` คือ URL ภาพนิ่ง HTTPS ส่วน `hls` คือ playlist วิดีโอสด เฉพาะจาก relay ที่เปิด CORS (`camera1.iticfoundation.org`) กล้องแต่ละตัวต้องมีอย่างน้อยหนึ่งอย่าง
+- หน้าเว็บตรวจซ้ำในเบราว์เซอร์ก่อนแสดง: ต้องได้ภาพกว้าง ≥ 64 px หรือถ้าไม่มีภาพ ต้องได้ playlist ที่ขึ้นต้นด้วย `#EXTM3U` (`public/js/camera-availability.js`)
 - URL ที่เป็นค่าตัวอย่าง หรือเป็นกล้องที่รู้ว่าไม่มีสัญญาณ จะถูกตัดตาม `DEAD_IMAGE_PATTERNS` ใน `lib/traffic-cameras.js`
 - log ที่เกี่ยวข้อง: `traffic_cameras_unrecognized`, `traffic_cameras_upstream_failed`
+
+## `GET /api/camera-snapshot?id=<id>`
+
+ภาพล่าสุดจากกล้องระดับน้ำเทศบาลนครรังสิต (`cdp.rangsitcity.go.th`) ผ่าน server ของเรา
+
+- `id` รับเฉพาะกล้องที่อนุญาตใน `api/camera-snapshot.js` (`151`, `152`) ค่าอื่นได้ `400`
+- ตอบเป็น `image/jpeg` หรือ `image/png` ถ้าต้นทางไม่ตอบหรือไม่ใช่ภาพจริงได้ `502` พร้อม log `camera_snapshot_failed`
+- `Cache-Control: s-maxage=8` หน้าเว็บปัด cache-buster (`t=`) ตามรอบรีเฟรชของกล้อง ผู้ชมหลายคนในรอบเดียวกันจึงใช้ภาพจาก CDN ชุดเดียว ไม่เรียก function ซ้ำ
 
 ## `GET /api/water-gates`
 
