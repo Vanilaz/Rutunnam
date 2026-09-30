@@ -21,8 +21,11 @@ function listModules(dir) {
 
 const ENTRY = path.join(MODULE_DIR, "main.js");
 const modules = fs.existsSync(MODULE_DIR) ? listModules(MODULE_DIR) : [];
+const packageVersion = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+// index.html loads every module and stylesheet under /v/<version>/ (see scripts/sync-version.js).
+const ASSET_PREFIX = `/v/${packageVersion}`;
 /** @param {string} file */
-const toUrl = (file) => `/${path.relative(PUBLIC_DIR, file).split(path.sep).join("/")}`;
+const toUrl = (file) => `${ASSET_PREFIX}/${path.relative(PUBLIC_DIR, file).split(path.sep).join("/")}`;
 
 // Walk the runtime import graph from main.js; JSDoc-only files such as types.js are never fetched.
 /** @type {Set<string>} */
@@ -50,12 +53,16 @@ if (fs.existsSync("public/index.html")) {
   const shipped = new Set([...reachable].map(toUrl));
   for (const url of shipped) if (!preloaded.has(url)) errors.push(`index.html: add <link rel="modulepreload" href="${url}">`);
   for (const url of preloaded) if (!shipped.has(url)) errors.push(`index.html: remove modulepreload ${url} (not a runtime module)`);
+  // Unversioned or stale-version asset URLs let a phone pair new HTML with cached old JS/CSS.
+  for (const [, url] of html.matchAll(/(?:href|src)="(\/(?:v\/[^/"]+\/)?(?:js\/[^"]+\.js|[\w-]+\.css))"/g)) {
+    if (!url.startsWith(`${ASSET_PREFIX}/`)) errors.push(`index.html: ${url} must be under ${ASSET_PREFIX}/ (run: node scripts/sync-version.js)`);
+  }
+  if (!html.includes(`<script type="module" src="${ASSET_PREFIX}/js/main.js"></script>`)) errors.push(`index.html: entry script must be ${ASSET_PREFIX}/js/main.js`);
 }
 
 // The client reloads itself when its APP_VERSION differs from the server's, so they must match.
 const appVersion = /export const APP_VERSION = "([^"]+)"/.exec(fs.existsSync(path.join(MODULE_DIR, "config.js")) ? fs.readFileSync(path.join(MODULE_DIR, "config.js"), "utf8") : "")?.[1];
-const packageVersion = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
-if (appVersion !== packageVersion) errors.push(`public/js/config.js APP_VERSION (${appVersion}) must equal package.json version (${packageVersion})`);
+if (appVersion !== packageVersion) errors.push(`public/js/config.js APP_VERSION (${appVersion}) must equal package.json version (${packageVersion}) (run: node scripts/sync-version.js)`);
 
 if (errors.length) {
   console.error(errors.join("\n"));

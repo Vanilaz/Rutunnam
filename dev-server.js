@@ -6,6 +6,8 @@ const path = require("node:path");
 process.env.NODE_ENV ??= "development";
 const root = path.join(__dirname, "public");
 const port = Number(process.env.PORT) || 3000;
+// Same rewrite as vercel.json: /v/<version>/js/main.js is served from /js/main.js.
+const VERSIONED_PREFIX = /^\/v\/[^/]+(?=\/)/;
 const apiRoutes = new Set(["/api/water", "/api/flood", "/api/config", "/api/road-flood", "/api/flood-wms", "/api/traffic-cameras", "/api/water-gates", "/api/dams", "/api/camera-snapshot"]);
 /** @type {Record<string, string>} */
 const types = {
@@ -62,7 +64,7 @@ http.createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url ?? "/", "http://localhost");
     if (apiRoutes.has(pathname)) return await handleApi(pathname, req, res);
-    return serveStatic(pathname, res);
+    return serveStatic(pathname.replace(VERSIONED_PREFIX, ""), res);
   } catch (error) {
     console.error(error);
     return send(res, 500, "Internal server error");

@@ -2,6 +2,13 @@
 
 รูปแบบอิง [Keep a Changelog](https://keepachangelog.com/) และใช้ semantic versioning แบบ 0.x
 
+## [0.7.1] — 2026-09-30
+
+### แก้
+- iPhone ที่เปิดเว็บค้างไว้ยังรัน JS เก่า (0.6.3) คู่กับ CSS ใหม่หลัง deploy 0.7.0 หน้ากล้องจึงออกมาผสมระหว่างสองเวอร์ชัน
+  - JS และ CSS ทุกไฟล์โหลดจาก `/v/<version>/…` (Vercel rewrite) เวอร์ชันใหม่จึงเป็น URL ใหม่ ไม่มีทางได้ไฟล์เก่าจาก cache
+  - `npm version` เรียก `scripts/sync-version.js` ให้อัตโนมัติ ส่วน `npm run build` ตรวจว่าไม่มี URL ที่ไม่มีเลขเวอร์ชันหลงอยู่
+
 ## [0.7.0] — 2026-09-30
 
 ### เพิ่ม

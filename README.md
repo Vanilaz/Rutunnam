@@ -115,7 +115,8 @@ GitHub Actions (`.github/workflows/ci.yml`) รัน typecheck, unit test แ�
 - **การ deploy เวอร์ชันใหม่:**
   - ไฟล์ HTML/JS/CSS ตั้ง `Cache-Control: no-cache` ให้เบราว์เซอร์ตรวจกับ server ทุกครั้ง (ตอบกลับเป็น 304 ถ้าไม่เปลี่ยน)
   - หน้าเว็บเทียบ `APP_VERSION` กับ `version` ใน `/api/config` ถ้าไม่ตรงจะโหลดใหม่เองหนึ่งครั้ง
-  - ทุกครั้งที่ขึ้นเวอร์ชัน ต้องแก้ทั้ง `package.json` และ `APP_VERSION` ใน `public/js/config.js` ให้ตรงกัน (`npm run build` ตรวจให้)
+  - JS/CSS โหลดจาก `/v/<version>/…` เวอร์ชันใหม่จึงได้ URL ใหม่ Safari บน iPhone ไม่สามารถใช้ไฟล์ JS เก่าจาก cache คู่กับหน้าใหม่ได้
+  - ขึ้นเวอร์ชันด้วย `npm version <x.y.z> --no-git-tag-version` ซึ่งจะอัปเดต `APP_VERSION` และ URL ใน `index.html` ให้เอง (`npm run build` ตรวจให้)
 - **Library จาก CDN:** MapLibre 5.24.0 และ hls.js 1.7.3 ล็อกเวอร์ชันและตรวจ SRI ทั้งคู่โหลดเฉพาะเมื่อจำเป็น ถ้า Leaflet โหลดไม่ได้ รายการสถานียังใช้งานได้
 - **Log:** ความผิดพลาดของต้นทางถูกบันทึกเป็น JSON ดูได้ใน Vercel Runtime Logs เช่น `water_upstream_failed`, `flood_wms_failed`, `road_flood_unrecognized` และ `traffic_cameras_upstream_failed` log ของ GISTDA ตัด key ออกแล้ว
 - **ความเร็ว:**
