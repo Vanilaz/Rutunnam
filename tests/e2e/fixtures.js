@@ -64,7 +64,7 @@ function makeStations(count) {
 /**
  * @typedef {{ status: number, body: string, contentType?: string }} ApiReply
  * @typedef {{ api: (reply: ApiReply | (() => ApiReply)) => void, config: (reply: ApiReply) => void, roadFlood: (reply: ApiReply) => void, trafficCameras: (reply: ApiReply) => void, waterGates: (reply: ApiReply) => void, dams: (reply: ApiReply) => void,
- *   vectorStyle: (ok: boolean) => void, streams: (mode: "fail" | "hang") => void, pageErrors: string[], requests: string[] }} Net
+ *   vectorStyle: (ok: boolean) => void, streams: (mode: "fail" | "hang") => void, radar: (ok: boolean) => void, pageErrors: string[], requests: string[] }} Net
  */
 
 const FULL_CONFIG = {
@@ -106,6 +106,7 @@ async function netFixture({ page }, use) {
   /** @type {Set<string>} playlists already answered once (the availability probe) */
   const probed = new Set();
   const closed = new Promise((resolve) => page.once("close", resolve));
+  let radarOk = true;
   /** @type {string[]} */
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -129,6 +130,11 @@ async function netFixture({ page }, use) {
       if (streamMode === "hang" && probed.has(url)) { await closed; return route.abort().catch(() => {}); }
       probed.add(url);
       return route.fulfill({ body: EMPTY_PLAYLIST, contentType: "application/vnd.apple.mpegurl", headers: CORS });
+    }
+    if (host === "api.rainviewer.com") {
+      if (!radarOk) return route.fulfill({ status: 503, body: "down", headers: CORS });
+      const time = Math.floor(Date.now() / 1000) - 300;
+      return route.fulfill({ body: JSON.stringify({ version: "2.0", host: "https://tilecache.rainviewer.com", radar: { past: [{ time, path: `/v2/radar/${time}` }], nowcast: [] } }), contentType: "application/json", headers: CORS });
     }
     if (pathname === "/api/camera-snapshot") return route.fulfill({ body: FRAME, contentType: "image/svg+xml" });
     if (pathname === "/api/road-flood") return route.fulfill({ status: roadFlood.status, body: roadFlood.body, contentType: "application/json" });
@@ -160,6 +166,7 @@ async function netFixture({ page }, use) {
     requests,
     vectorStyle: (ok) => { styleOk = ok; },
     streams: (mode) => { streamMode = mode; },
+    radar: (ok) => { radarOk = ok; },
     pageErrors
   });
 }

@@ -359,6 +359,44 @@ test.describe("water gates and dams", () => {
   });
 });
 
+test.describe("rain radar and hotlines", () => {
+  test("rain radar is on by default, shows its time, and stays off once switched off", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#toggle-radar")).toBeChecked();
+    await expect(page.locator("#radar-note")).toContainText("ภาพเวลา");
+    await expect(page.locator('img.leaflet-tile[src*="tilecache.rainviewer.com/v2/radar/"]').first()).toBeAttached();
+    await openTab(page, "flood");
+    await expect(page.locator(".radar-card")).toContainText("ภาพเรดาร์เวลา");
+    if (isMobile()) await page.locator('[data-nav="map"]').click(); // The layer switches live on the map screen.
+    await openLayers(page);
+    await page.locator("label:has(#toggle-radar)").click();
+    await expect(page.locator("#toggle-radar")).not.toBeChecked();
+    await expect(page.locator('img.leaflet-tile[src*="tilecache.rainviewer.com"]')).toHaveCount(0);
+    await page.reload();
+    await expect(page.locator("#station-count")).toHaveText("30 สถานีทั่วประเทศ");
+    await expect(page.locator("#toggle-radar")).not.toBeChecked();
+  });
+
+  test("a radar outage is reported instead of an empty map", async ({ page, net }) => {
+    net.radar(false);
+    await page.goto("/");
+    await expect(page.locator("#radar-note")).toHaveText("RainViewer · โหลดไม่ได้");
+    await openTab(page, "flood");
+    await expect(page.locator(".radar-card .cache-warning")).toContainText("โหลดเรดาร์ฝนไม่ได้");
+    expect(net.pageErrors).toEqual([]);
+  });
+
+  test("emergency numbers are one tap away on the warning page", async ({ page }) => {
+    await page.goto("/");
+    await openTab(page, "risk");
+    const hotline = page.locator('#tab-content a.hotline[href="tel:1784"]');
+    await hotline.scrollIntoViewIfNeeded();
+    await expect(hotline).toBeVisible();
+    await expect(hotline).toContainText("สายด่วนนิรภัย ปภ.");
+    await expect(page.locator("#tab-content a.hotline")).toHaveCount(10);
+  });
+});
+
 test.describe("deploy safety", () => {
   // Count HTML document requests: the reload can happen before the first "load" event fires.
   /** @param {string[]} requests */

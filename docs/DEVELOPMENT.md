@@ -41,6 +41,7 @@ public/
     types.js                 JSDoc typedef ที่ใช้ร่วมกัน (ไม่ถูกโหลดตอนรันจริง)
     utils.js                 ฟังก์ชันบริสุทธิ์: เวลา ระยะทาง ค้นหา ตรวจข้อมูลจาก API
     risk.js                  จัดระดับความเสี่ยงล้นตลิ่ง
+    radar.js                 แปลงดัชนี RainViewer เป็น URL tile เรดาร์ล่าสุด
     reservoir.js             จัดระดับเขื่อนตามเกณฑ์กรมชลประทาน, ต่างระดับประตูน้ำ
     templates.js             สร้าง HTML ทั้งหมด (escape ทุกค่าจากภายนอก, อนุญาตเฉพาะลิงก์ http/https)
     api.js                   เรียก /api/* พร้อม timeout และข้อความ error ภาษาไทย
@@ -49,7 +50,7 @@ public/
     map/                     map.js, basemap.js, stations-layer.js, cameras-layer.js,
                              traffic-cameras-layer.js, flood-layer.js, traffic-layer.js,
                              road-flood-layer.js, water-gates-layer.js, dams-layer.js, location-layer.js,
-                             viewport-markers.js (สร้างหมุดเฉพาะในจอ)
+                             viewport-markers.js (สร้างหมุดเฉพาะในจอ), radar-layer.js
     camera-availability.js   ตรวจว่ากล้องส่งภาพ/สตรีมได้จริงก่อนขึ้นแผนที่
     water-trends.js          แนวโน้มขึ้น/ลงจากค่าตรวจวัดสองรอบ
     ui/                      dom.js, clock.js, status.js, list-panel.js, camera-viewer.js,

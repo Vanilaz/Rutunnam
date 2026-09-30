@@ -145,3 +145,16 @@ h1{font-size:clamp(30px,3.2vw,48px);letter-spacing:-.05em;margin:5px 0}h1 em{col
 .band-heading{font-size:12px;font-weight:700;color:#6b8491;margin:14px 4px 8px}
 @keyframes live-dot{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.cam-badge.is-live::before{animation:none}.cam-live,.cam-thumb img{transition:none}}
+/* v0.8.0 — emergency hotlines and rain radar. */
+.hotlines{margin-top:18px}
+.hotline-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.hotline{display:flex;align-items:center;gap:10px;min-height:58px;padding:9px 11px;border:1px solid #e0eaed;border-radius:13px;background:#fff;color:#123b4c;text-decoration:none}
+.hotline:hover,.hotline:focus-visible{border-color:#38aaa5;background:#f4fbfa}
+.hotline-icon{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;background:#1fa35b;color:#fff}
+.hotline.is-urgent .hotline-icon{background:#e5484d}
+.hotline-icon svg{width:17px;height:17px;fill:currentColor}
+.hotline-text{min-width:0}
+.hotline-text strong{display:block;font:800 17px Manrope,'IBM Plex Sans Thai',sans-serif;letter-spacing:.3px}
+.hotline-text small{display:block;font-size:11px;color:#5d7986;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.radar-card .link-button{margin-right:6px}
+.legend-dot.radar{background:linear-gradient(90deg,#8fd3ff,#2f6fe0,#f5c542,#e5484d)}

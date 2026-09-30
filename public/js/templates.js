@@ -1,5 +1,5 @@
 // HTML string builders. Every dynamic value goes through escapeHtml.
-import { DEFAULT_CAMERA_REFRESH_MS, LIVE_GRID_MAX_STREAMS, NEARBY_RADIUS_KM, THAIWATER_URL, TRAFFIC_CAMERA_REFRESH_MS } from "./config.js";
+import { DEFAULT_CAMERA_REFRESH_MS, EMERGENCY_CONTACTS, LIVE_GRID_MAX_STREAMS, NEARBY_RADIUS_KM, RAIN_RADAR, THAIWATER_URL, TMD_RADAR_URL, TRAFFIC_CAMERA_REFRESH_MS } from "./config.js";
 import { formatMargin, RISK_STYLES, stationRisk } from "./risk.js";
 import { DAM_STYLES, gateDifference } from "./reservoir.js";
 import { escapeHtml as esc, fmtTime, isFresh, levelText } from "./utils.js";
@@ -92,11 +92,30 @@ const FLOOD_LINKS = infoCard("GISTDA · แผนที่น้ำท่วม�
 /** @type {Record<string, string>} */
 const FLOOD_PERIOD_TEXT = { "1day": "1 วัน", "3days": "3 วัน", "7days": "7 วัน" };
 
+/** Tap-to-call hotlines. Life-safety numbers first, in red. */
+export function emergencyHtml() {
+  const cards = EMERGENCY_CONTACTS.map(({ number, label, urgent }) =>
+    `<a class="hotline${urgent ? " is-urgent" : ""}" href="tel:${esc(number)}"><span class="hotline-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span><span class="hotline-text"><strong>${esc(number)}</strong><small>${esc(label)}</small></span></a>`).join("");
+  return `<section class="hotlines" aria-labelledby="hotlines-title"><div class="content-heading"><strong id="hotlines-title">เบอร์ฉุกเฉิน</strong><span>แตะเพื่อโทร</span></div><div class="hotline-grid">${cards}</div></section>`;
+}
+
 /**
- * @param {{ floodAvailable: boolean, floodOn: boolean, floodPeriod?: string, floodError: boolean,
- *   roads: { report: RoadFlood, distance: number }[] | null, roadError: string | null, roadUnsupported: boolean }} view
+ * @param {{ on: boolean, time: number | null, error: string | null, now?: number }} radar
  */
-export function floodTabHtml({ floodAvailable, floodOn, floodPeriod, floodError, roads, roadError, roadUnsupported }) {
+export function radarCardHtml({ on, time, error, now = Date.now() }) {
+  const stale = time !== null && now - time > RAIN_RADAR.staleMs;
+  const status = error
+    ? `<div class="cache-warning">${esc(error)} ตรวจเรดาร์ของกรมอุตุนิยมวิทยาได้จากลิงก์ด้านล่าง</div>`
+    : !on ? "" : time === null ? `<p class="subtle">กำลังโหลดภาพเรดาร์ล่าสุด...</p>`
+      : `<p class="subtle">ภาพเรดาร์เวลา ${esc(fmtTime(new Date(time).toISOString()))}${stale ? " · ข้อมูลเก่ากว่า 30 นาที" : ""}</p>`;
+  return `<div class="info-card radar-card"><strong>เรดาร์ฝน</strong><p>สีบนแผนที่คือกลุ่มฝนที่เรดาร์ตรวจพบ (ฟ้าอ่อน = ฝนเบา → เหลือง/แดง = ฝนหนัก) อัปเดตทุก 10 นาที ใช้ดูว่าฝนกำลังเคลื่อนเข้าพื้นที่ไหน</p>${status}<button class="link-button" data-action="toggle-radar" type="button">${on ? "ซ่อนเรดาร์ฝน" : "แสดงเรดาร์ฝนบนแผนที่"}</button> ${external(TMD_RADAR_URL, "เรดาร์กรมอุตุฯ ↗", "")}</div>`;
+}
+
+/**
+ * @param {{ floodAvailable: boolean, floodOn: boolean, floodPeriod?: string, floodError: boolean, roads: { report: RoadFlood, distance: number }[] | null,
+ *   roadError: string | null, roadUnsupported: boolean, radar?: { on: boolean, time: number | null, error: string | null } }} view
+ */
+export function floodTabHtml({ floodAvailable, floodOn, floodPeriod, floodError, roads, roadError, roadUnsupported, radar }) {
   const period = FLOOD_PERIOD_TEXT[floodPeriod ?? ""] ?? "ล่าสุด";
   const satellite = !floodAvailable
     ? `<div class="empty"><strong>ยังไม่เปิดชั้นพื้นที่น้ำท่วมจากดาวเทียม</strong><p>ต้องตั้งค่า GISTDA_API_KEY บนเซิร์ฟเวอร์ก่อน ระหว่างนี้ตรวจจากเว็บไซต์ GISTDA ได้</p></div>`
@@ -109,7 +128,7 @@ export function floodTabHtml({ floodAvailable, floodOn, floodPeriod, floodError,
   else if (roads === null) roadHtml = `<p class="subtle">กำลังโหลดรายงานถนนน้ำท่วม...</p>`;
   else if (!roads.length) roadHtml = `<p class="subtle">ThaiWater ไม่มีรายงานถนนน้ำท่วมในขณะนี้</p>`;
   else roadHtml = `<div class="content-heading"><strong>ถนนน้ำท่วมที่รายงาน</strong><span>${roads.length} จุด</span></div>` + roads.map(({ report, distance }) => `<button type="button" class="station-card" data-road="${esc(report.id)}"><span class="row"><strong>${esc(report.name)}</strong><span class="distance">${distance.toFixed(1)} km</span></span><span class="meta">${esc(report.province || "ถนนน้ำท่วม")} · ${depthText(report)}</span><span class="time">รายงาน ${esc(fmtTime(report.reportedAt))}</span></button>`).join("");
-  return `${satellite}${roadHtml}${FLOOD_LINKS}`;
+  return `${radar ? radarCardHtml(radar) : ""}${satellite}${roadHtml}${FLOOD_LINKS}${emergencyHtml()}`;
 }
 
 /**
@@ -119,15 +138,16 @@ export function floodTabHtml({ floodAvailable, floodOn, floodPeriod, floodError,
  */
 export function riskTabHtml({ items, total, nearby, hasStations, riskOnly, nearest = [], error = null, fetchedAt = null }) {
   // On phones this tab replaces the water-level tab, so it carries the same error and cache states.
-  if (!hasStations) return waterTabHtml({ nearest: [], hasStations, error, fetchedAt });
+  // Hotlines stay reachable even when the water feed is down.
+  if (!hasStations) return waterTabHtml({ nearest: [], hasStations, error, fetchedAt }) + emergencyHtml();
   const warning = error ? `<div class="cache-warning">ข้อมูลใหม่ยังไม่พร้อม · แสดงข้อมูลที่ดึง ${esc(fmtTime(fetchedAt))}</div>` : "";
   const summary = `${warning}<div class="nearby-summary" aria-label="สรุปรอบจุดศูนย์กลาง ${NEARBY_RADIUS_KM} กม."><div><strong class="risk-text-overflow">${nearby.overflow}</strong><span>ล้นตลิ่ง</span></div><div><strong class="risk-text-high">${nearby.high}</strong><span>ใกล้ตลิ่ง</span></div><div><strong>${nearby.roads ?? "—"}</strong><span>ถนนน้ำท่วม</span></div></div><p class="subtle">ในรัศมี ${NEARBY_RADIUS_KM} กม. จากจุดศูนย์กลาง (บ้าน/ตำแหน่งฉัน/รังสิต)</p>`;
   const toggle = `<button class="link-button" data-action="toggle-risk-only" type="button">${riskOnly ? "แสดงทุกสถานีบนแผนที่" : "แสดงเฉพาะจุดเสี่ยงบนแผนที่"}</button>`;
   const nearestHtml = nearest.length ? `<div class="content-heading"><strong>สถานีวัดน้ำใกล้คุณ</strong><span>${nearest.length} สถานี</span></div>${nearest.map(stationCardHtml).join("")}` : "";
-  if (!items.length) return `${summary}<div class="empty"><strong>ยังไม่พบสถานีที่น้ำล้นหรือใกล้ตลิ่ง</strong><p>ประเมินจากข้อมูลล่าสุดของ ThaiWater ที่มีเวลาตรวจวัดไม่เกิน 6 ชั่วโมง</p></div>${nearestHtml}`;
+  if (!items.length) return `${summary}<div class="empty"><strong>ยังไม่พบสถานีที่น้ำล้นหรือใกล้ตลิ่ง</strong><p>ประเมินจากข้อมูลล่าสุดของ ThaiWater ที่มีเวลาตรวจวัดไม่เกิน 6 ชั่วโมง</p></div>${nearestHtml}${emergencyHtml()}`;
   const list = items.map(({ station: s, risk, distance }) => `<button type="button" class="station-card risk-card risk-edge-${risk.status}" data-station="${esc(s.id)}"><span class="row"><strong>${esc(s.name)}</strong><span class="distance">${distance.toFixed(1)} km</span></span><span class="meta">${esc(s.province || s.river || "ข้อมูลสถานี")}</span><span class="row">${riskBadge(risk)}<span class="value">${levelText(s)} <small>ม. รทก.</small></span></span>${trendLine(s)}<span class="time">${bankLine(risk)} · ${esc(fmtTime(s.measuredAt))}</span></button>`).join("");
   const more = total > items.length ? `<p class="subtle">แสดง ${items.length} จาก ${total} สถานี เรียงจากเสี่ยงมากไปน้อย</p>` : "";
-  return `${summary}<div class="content-heading"><strong>จุดที่น้ำล้นหรือใกล้ตลิ่งทั่วประเทศ</strong><span>${total} สถานี</span></div>${toggle}${list}${more}${nearestHtml}<p class="subtle">เกณฑ์: ใช้ % ความจุลำน้ำที่ ThaiWater คำนวณ (เกิน 100% = ล้นตลิ่ง, เกิน 70% = น้ำมาก) หรือเทียบระดับน้ำกับระดับตลิ่งต่ำสุดที่เผยแพร่ ตำแหน่งบนแผนที่คือจุดตั้งสถานี ไม่ใช่แนวตลิ่งทั้งเส้น</p>`;
+  return `${summary}<div class="content-heading"><strong>จุดที่น้ำล้นหรือใกล้ตลิ่งทั่วประเทศ</strong><span>${total} สถานี</span></div>${toggle}${list}${more}${nearestHtml}<p class="subtle">เกณฑ์: ใช้ % ความจุลำน้ำที่ ThaiWater คำนวณ (เกิน 100% = ล้นตลิ่ง, เกิน 70% = น้ำมาก) หรือเทียบระดับน้ำกับระดับตลิ่งต่ำสุดที่เผยแพร่ ตำแหน่งบนแผนที่คือจุดตั้งสถานี ไม่ใช่แนวตลิ่งทั้งเส้น</p>${emergencyHtml()}`;
 }
 
 /** Cameras shown as large live cards before the compact grid (the rest of the list). */
