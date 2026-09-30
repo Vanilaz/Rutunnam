@@ -2,6 +2,7 @@
 // Static checks run by `npm run build` (Vercel build step). No bundler: files ship as-is.
 const fs = require("node:fs");
 const path = require("node:path");
+const { assetHash, readManifest, MANIFEST_FILE } = require("./sync-version");
 
 const PUBLIC_DIR = "public";
 const MODULE_DIR = path.join(PUBLIC_DIR, "js");
@@ -63,6 +64,12 @@ if (fs.existsSync("public/index.html")) {
 // The client reloads itself when its APP_VERSION differs from the server's, so they must match.
 const appVersion = /export const APP_VERSION = "([^"]+)"/.exec(fs.existsSync(path.join(MODULE_DIR, "config.js")) ? fs.readFileSync(path.join(MODULE_DIR, "config.js"), "utf8") : "")?.[1];
 if (appVersion !== packageVersion) errors.push(`public/js/config.js APP_VERSION (${appVersion}) must equal package.json version (${packageVersion}) (run: node scripts/sync-version.js)`);
+
+// /v/<version>/ is served immutable, so a published version's bytes must never change.
+const manifest = readManifest();
+if (!manifest) errors.push(`Missing or invalid ${MANIFEST_FILE} (run: node scripts/sync-version.js)`);
+else if (manifest.version !== packageVersion) errors.push(`${MANIFEST_FILE} is for ${manifest.version}, package.json is ${packageVersion} (run: node scripts/sync-version.js)`);
+else if (manifest.hash !== assetHash()) errors.push(`JS/CSS changed since ${packageVersion} was recorded. Browsers cache /v/${packageVersion}/ forever, so bump: npm version patch --no-git-tag-version`);
 
 if (errors.length) {
   console.error(errors.join("\n"));

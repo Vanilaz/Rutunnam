@@ -1,7 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const { versionAssets, setAppVersion } = require("../scripts/sync-version");
+const os = require("node:os");
+const path = require("node:path");
+const { versionAssets, setAppVersion, assetHash, readManifest } = require("../scripts/sync-version");
 
 test("asset URLs carry the version, so new HTML can never run cached old JS", () => {
   const html = [
@@ -32,4 +34,25 @@ test("the shipped page, config and Vercel rewrite agree on the version", () => {
   assert.ok(fs.readFileSync("public/js/config.js", "utf8").includes(`export const APP_VERSION = "${version}";`));
   const vercel = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
   assert.deepEqual(vercel.rewrites, [{ source: "/v/:version/:path*", destination: "/:path*" }]);
+  const cache = vercel.headers.find((rule) => rule.source === "/v/(.*)")?.headers.find((h) => h.key === "Cache-Control")?.value;
+  assert.match(cache, /immutable/, "a version's files are cached for good, so no tab can mix versions");
+  assert.deepEqual(readManifest(), { version, hash: assetHash() }, "the recorded hash matches the shipped JS/CSS");
+});
+
+test("the asset hash changes with any module or stylesheet, and only with those", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "assets-"));
+  fs.mkdirSync(path.join(root, "js", "ui"), { recursive: true });
+  fs.writeFileSync(path.join(root, "js", "main.js"), "export {};");
+  fs.writeFileSync(path.join(root, "js", "ui", "a.js"), "export const a = 1;");
+  fs.writeFileSync(path.join(root, "styles.css"), "body{}");
+  fs.writeFileSync(path.join(root, "index.html"), "<html>");
+  const before = assetHash(root);
+  fs.writeFileSync(path.join(root, "index.html"), "<html lang=th>");
+  assert.equal(assetHash(root), before, "index.html is no-cache, not versioned");
+  fs.writeFileSync(path.join(root, "js", "ui", "a.js"), "export const a = 2;");
+  const afterModule = assetHash(root);
+  assert.notEqual(afterModule, before);
+  fs.writeFileSync(path.join(root, "styles.css"), "body{color:red}");
+  assert.notEqual(assetHash(root), afterModule);
+  fs.rmSync(root, { recursive: true, force: true });
 });
